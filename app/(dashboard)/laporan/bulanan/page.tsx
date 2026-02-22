@@ -1,4 +1,5 @@
 'use client'
+
 export const dynamic = 'force-dynamic'
 
 import { useEffect, useState } from 'react'
@@ -24,7 +25,6 @@ export default function LaporanBulananPage() {
   const [data, setData] = useState<BulanData[]>([])
   const [loading, setLoading] = useState(true)
   const [tahun, setTahun] = useState(new Date().getFullYear())
-  const supabase = createClient()
 
   useEffect(() => {
     if (!store || !isPro) { setLoading(false); return }
@@ -33,6 +33,7 @@ export default function LaporanBulananPage() {
 
   async function fetchLaporan() {
     setLoading(true)
+    const supabase = createClient()  // ← dipindah ke dalam fungsi
     const hasil: BulanData[] = []
 
     for (let bulan = 1; bulan <= 12; bulan++) {
@@ -47,7 +48,7 @@ export default function LaporanBulananPage() {
         .gte('created_at', start)
         .lte('created_at', end)
 
-      const transactions = trx ?? []
+      const transactions = (trx ?? []) as any[]
       const totalPenjualan = transactions.reduce((s, t) => s + t.total, 0)
       const totalTransaksi = transactions.length
 
@@ -101,7 +102,6 @@ export default function LaporanBulananPage() {
         </select>
       </div>
 
-      {/* Summary cards */}
       <div className="grid grid-cols-3 gap-4 mb-6">
         {[
           { label: `Total Penjualan ${tahun}`, value: formatRupiah(totalTahunan), color: 'green' },
@@ -123,7 +123,6 @@ export default function LaporanBulananPage() {
         </div>
       ) : (
         <>
-          {/* Bar chart visual */}
           <div className="bg-[#181c27] border border-[#2a3045] rounded-xl p-6 mb-5">
             <h2 className="font-bold text-sm mb-5 flex items-center gap-2">
               <TrendingUp className="w-4 h-4 text-green-400" /> Grafik Penjualan {tahun}
@@ -148,7 +147,6 @@ export default function LaporanBulananPage() {
             </div>
           </div>
 
-          {/* Table */}
           <div className="bg-[#181c27] border border-[#2a3045] rounded-xl overflow-hidden">
             <div className="p-4 border-b border-[#2a3045]">
               <h2 className="font-bold text-sm">Detail Per Bulan</h2>
