@@ -4,7 +4,7 @@ export const dynamic = 'force-dynamic'
 
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { ArrowLeft, Lock, TrendingUp } from 'lucide-react'
+import { ArrowLeft, Lock, TrendingUp, FileDown } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { useStore } from '@/hooks/useStore'
 import { useFreemium } from '@/hooks/useFreemium'
@@ -16,6 +16,73 @@ type BulanData = {
   totalPenjualan: number
   totalTransaksi: number
   rataRata: number
+}
+
+function exportPDFBulanan(storeName: string, tahun: number, data: BulanData[], totalTahunan: number) {
+  const rowsHtml = data.map((d, i) => `
+    <tr style="${i % 2 === 0 ? '' : 'background:#f9fafb'}">
+      <td>${d.label}</td>
+      <td style="text-align:right">${formatRupiah(d.totalPenjualan)}</td>
+      <td style="text-align:center">${d.totalTransaksi}</td>
+      <td style="text-align:right">${formatRupiah(d.rataRata)}</td>
+    </tr>
+  `).join('')
+
+  const bulanTerbaik = data.reduce((best, d) => d.totalPenjualan > best.totalPenjualan ? d : best, data[0])
+
+  const html = `
+    <!DOCTYPE html><html><head>
+    <meta charset="utf-8">
+    <title>Laporan Bulanan ${tahun} - ${storeName}</title>
+    <style>
+      * { margin: 0; padding: 0; box-sizing: border-box; }
+      body { font-family: Arial, sans-serif; font-size: 11px; color: #1a1a1a; padding: 30px; }
+      .header { border-bottom: 2px solid #22c55e; padding-bottom: 12px; margin-bottom: 20px; }
+      .header h1 { font-size: 20px; color: #16a34a; }
+      .header p { color: #666; font-size: 11px; margin-top: 2px; }
+      .summary { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 20px; }
+      .card { background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 8px; padding: 12px; }
+      .card .label { font-size: 10px; color: #6b7280; text-transform: uppercase; }
+      .card .value { font-size: 16px; font-weight: bold; color: #16a34a; margin-top: 3px; }
+      h2 { font-size: 13px; font-weight: bold; margin-bottom: 8px; color: #374151; border-left: 3px solid #22c55e; padding-left: 8px; }
+      table { width: 100%; border-collapse: collapse; margin-bottom: 20px; font-size: 11px; }
+      th { background: #f3f4f6; padding: 8px; text-align: left; font-size: 10px; text-transform: uppercase; color: #6b7280; }
+      td { padding: 7px 8px; border-bottom: 1px solid #f3f4f6; }
+      tfoot td { font-weight: bold; background: #f0fdf4; border-top: 2px solid #22c55e; }
+      .footer { text-align: center; color: #9ca3af; font-size: 10px; margin-top: 20px; border-top: 1px solid #e5e7eb; padding-top: 12px; }
+    </style>
+    </head><body>
+    <div class="header">
+      <h1>${storeName}</h1>
+      <p>Laporan Bulanan — Tahun ${tahun}</p>
+      <p>Dicetak: ${new Date().toLocaleString('id-ID')}</p>
+    </div>
+    <div class="summary">
+      <div class="card"><div class="label">Total Penjualan ${tahun}</div><div class="value">${formatRupiah(totalTahunan)}</div></div>
+      <div class="card"><div class="label">Bulan Terbaik</div><div class="value">${bulanTerbaik?.label ?? '-'}</div></div>
+      <div class="card"><div class="label">Penjualan Bulan Terbaik</div><div class="value">${formatRupiah(bulanTerbaik?.totalPenjualan ?? 0)}</div></div>
+    </div>
+    <h2>Detail Per Bulan</h2>
+    <table>
+      <thead><tr><th>Bulan</th><th style="text-align:right">Total Penjualan</th><th style="text-align:center">Transaksi</th><th style="text-align:right">Rata-rata</th></tr></thead>
+      <tbody>${rowsHtml}</tbody>
+      <tfoot><tr>
+        <td>TOTAL ${tahun}</td>
+        <td style="text-align:right">${formatRupiah(totalTahunan)}</td>
+        <td style="text-align:center">${data.reduce((s, d) => s + d.totalTransaksi, 0)}</td>
+        <td></td>
+      </tr></tfoot>
+    </table>
+    <div class="footer">TokoKu — Laporan dibuat otomatis • ${new Date().toLocaleDateString('id-ID')}</div>
+    </body></html>
+  `
+
+  const win = window.open('', '_blank', 'width=900,height=700')
+  if (!win) return
+  win.document.write(html)
+  win.document.close()
+  win.focus()
+  setTimeout(() => { win.print() }, 400)
 }
 
 export default function LaporanBulananPage() {
@@ -33,7 +100,7 @@ export default function LaporanBulananPage() {
 
   async function fetchLaporan() {
     setLoading(true)
-    const supabase = createClient()  // ← dipindah ke dalam fungsi
+    const supabase = createClient()
     const hasil: BulanData[] = []
 
     for (let bulan = 1; bulan <= 12; bulan++) {
@@ -41,12 +108,9 @@ export default function LaporanBulananPage() {
       const end = new Date(tahun, bulan, 0, 23, 59, 59).toISOString()
 
       const { data: trx } = await supabase
-        .from('transactions')
-        .select('total')
-        .eq('store_id', store!.id)
-        .eq('status', 'selesai')
-        .gte('created_at', start)
-        .lte('created_at', end)
+        .from('transactions').select('total')
+        .eq('store_id', store!.id).eq('status', 'selesai')
+        .gte('created_at', start).lte('created_at', end)
 
       const transactions = (trx ?? []) as any[]
       const totalPenjualan = transactions.reduce((s, t) => s + t.total, 0)
@@ -93,13 +157,20 @@ export default function LaporanBulananPage() {
           <h1 className="text-2xl font-black text-white">Laporan Bulanan</h1>
           <p className="text-[#64748b] text-sm mt-0.5">Ringkasan penjualan per bulan</p>
         </div>
-        <select
-          value={tahun}
-          onChange={e => setTahun(Number(e.target.value))}
-          className="px-4 py-2.5 bg-[#181c27] border border-[#2a3045] rounded-xl text-white text-sm outline-none focus:border-green-500/40"
-        >
-          {[2024, 2025, 2026].map(y => <option key={y} value={y}>{y}</option>)}
-        </select>
+        <div className="flex items-center gap-3">
+          {!loading && data.length > 0 && (
+            <button
+              onClick={() => exportPDFBulanan(store?.nama ?? 'Toko', tahun, data, totalTahunan)}
+              className="flex items-center gap-2 px-4 py-2.5 bg-green-400/10 border border-green-500/20 text-green-400 hover:bg-green-400/20 rounded-xl text-sm font-bold transition-colors"
+            >
+              <FileDown className="w-4 h-4" /> Export PDF
+            </button>
+          )}
+          <select value={tahun} onChange={e => setTahun(Number(e.target.value))}
+            className="px-4 py-2.5 bg-[#181c27] border border-[#2a3045] rounded-xl text-white text-sm outline-none focus:border-green-500/40">
+            {[2024, 2025, 2026].map(y => <option key={y} value={y}>{y}</option>)}
+          </select>
+        </div>
       </div>
 
       <div className="grid grid-cols-3 gap-4 mb-6">
@@ -110,9 +181,7 @@ export default function LaporanBulananPage() {
         ].map(({ label, value, color }) => (
           <div key={label} className="bg-[#181c27] border border-[#2a3045] rounded-xl p-4">
             <div className="text-xs text-[#64748b] mb-1">{label}</div>
-            <div className={`text-xl font-black font-mono ${
-              color === 'green' ? 'text-green-400' : color === 'cyan' ? 'text-cyan-400' : 'text-yellow-400'
-            }`}>{value}</div>
+            <div className={`text-xl font-black font-mono ${color === 'green' ? 'text-green-400' : color === 'cyan' ? 'text-cyan-400' : 'text-yellow-400'}`}>{value}</div>
           </div>
         ))}
       </div>
@@ -134,11 +203,9 @@ export default function LaporanBulananPage() {
                 return (
                   <div key={d.bulan} className="flex-1 flex flex-col items-center gap-1 group">
                     <div className="relative w-full flex items-end justify-center" style={{ height: '120px' }}>
-                      <div
-                        className={`w-full rounded-t-lg transition-all ${isCurrentMonth ? 'bg-green-400' : 'bg-[#2a3045] group-hover:bg-green-400/50'}`}
+                      <div className={`w-full rounded-t-lg transition-all ${isCurrentMonth ? 'bg-green-400' : 'bg-[#2a3045] group-hover:bg-green-400/50'}`}
                         style={{ height: `${Math.max(height, 2)}%` }}
-                        title={`${d.label}: ${formatRupiah(d.totalPenjualan)}`}
-                      />
+                        title={`${d.label}: ${formatRupiah(d.totalPenjualan)}`} />
                     </div>
                     <span className="text-[9px] text-[#64748b] font-mono">{d.label.slice(0, 3)}</span>
                   </div>
