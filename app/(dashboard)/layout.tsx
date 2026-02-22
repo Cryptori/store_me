@@ -1,12 +1,14 @@
 'use client'
+
 export const dynamic = 'force-dynamic'
+
 import { useEffect, useState } from 'react'
 import { useRouter, usePathname } from 'next/navigation'
 import Link from 'next/link'
 import {
   LayoutDashboard, ShoppingCart, Package, TrendingDown,
   Users, CreditCard, BarChart2, Settings, Zap,
-  LogOut, Store, Menu, X, ChevronRight
+  LogOut, Store, Menu,
 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { useStore } from '@/hooks/useStore'
@@ -30,12 +32,11 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const [mobileOpen, setMobileOpen] = useState(false)
   const [stokAlert, setStokAlert] = useState(0)
   const [hutangAlert, setHutangAlert] = useState(0)
-  const supabase = createClient()
 
   useEffect(() => {
     if (!store) return
     async function fetchAlerts() {
-      // Stok menipis
+      const supabase = createClient()  // ← dipindah ke dalam
       const { count: stokCount } = await supabase
         .from('products')
         .select('*', { count: 'exact', head: true })
@@ -44,7 +45,6 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         .gt('stok', 0)
       setStokAlert(stokCount ?? 0)
 
-      // Hutang belum lunas
       const { count: hutangCount } = await supabase
         .from('debts')
         .select('*', { count: 'exact', head: true })
@@ -56,13 +56,13 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   }, [store])
 
   async function handleLogout() {
+    const supabase = createClient()  // ← dipindah ke dalam
     await supabase.auth.signOut()
     router.push('/login')
   }
 
   const Sidebar = () => (
     <aside className="flex flex-col h-full bg-[#0f1117] border-r border-[#2a3045]">
-      {/* Logo */}
       <div className="p-5 border-b border-[#2a3045]">
         <div className="flex items-center gap-2.5">
           <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-green-400 to-cyan-400 flex items-center justify-center flex-shrink-0">
@@ -74,7 +74,6 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         </div>
       </div>
 
-      {/* Store info */}
       {store && (
         <div className="mx-3 mt-3 p-3 bg-[#181c27] rounded-xl border border-[#2a3045]">
           <div className="text-sm font-bold text-white truncate">{store.nama}</div>
@@ -93,7 +92,6 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         </div>
       )}
 
-      {/* Nav */}
       <nav className="flex-1 overflow-y-auto p-3 space-y-0.5">
         {NAV_ITEMS.map(({ href, label, icon: Icon, badge }) => {
           const isActive = pathname === href || pathname.startsWith(href + '/')
@@ -121,7 +119,6 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         })}
       </nav>
 
-      {/* Upgrade card */}
       {store && !store.is_pro && (
         <div className="mx-3 mb-3">
           <div className="bg-gradient-to-br from-[#1a2a1a] to-[#142020] border border-green-500/20 rounded-xl p-4">
@@ -140,7 +137,6 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         </div>
       )}
 
-      {/* Logout */}
       <div className="p-3 border-t border-[#2a3045]">
         <button
           onClick={handleLogout}
@@ -155,12 +151,10 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
   return (
     <div className="flex h-screen overflow-hidden bg-[#0a0d14]">
-      {/* Desktop sidebar */}
       <div className="hidden md:flex md:w-56 lg:w-60 flex-col flex-shrink-0">
         <Sidebar />
       </div>
 
-      {/* Mobile sidebar overlay */}
       {mobileOpen && (
         <div className="fixed inset-0 z-50 flex md:hidden">
           <div className="w-60 flex flex-col">
@@ -170,9 +164,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         </div>
       )}
 
-      {/* Main content */}
       <div className="flex-1 flex flex-col overflow-hidden">
-        {/* Mobile topbar */}
         <div className="md:hidden flex items-center justify-between px-4 py-3 bg-[#0f1117] border-b border-[#2a3045]">
           <button onClick={() => setMobileOpen(true)} className="text-[#64748b] hover:text-white">
             <Menu className="w-5 h-5" />
