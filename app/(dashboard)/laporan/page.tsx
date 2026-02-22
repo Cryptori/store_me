@@ -1,4 +1,5 @@
 'use client'
+export const dynamic = 'force-dynamic'
 
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
@@ -15,6 +16,7 @@ export default function LaporanPage() {
   const [data, setData] = useState<any>(null)
   const [loading, setLoading] = useState(false)
   const supabase = createClient()
+  
 
   useEffect(() => { if (store) fetchLaporan() }, [store, tanggal])
 
