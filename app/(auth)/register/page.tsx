@@ -29,9 +29,7 @@ export default function RegisterPage() {
     const supabase = createClient()
     await supabase.auth.signInWithOAuth({
       provider: 'google',
-      options: {
-        redirectTo: `${window.location.origin}/auth/callback`,
-      },
+      options: { redirectTo: `${window.location.origin}/auth/callback` },
     })
   }
 
@@ -56,18 +54,16 @@ export default function RegisterPage() {
       return
     }
 
-    const { error: signInError } = await supabase.auth.signInWithPassword({
-      email: data.email,
-      password: data.password,
-    })
-
-    if (signInError) {
+    // Cek apakah email sudah dikonfirmasi
+    // Kalau email_confirmed_at null berarti perlu konfirmasi dulu
+    if (!authData.user.email_confirmed_at) {
       setSentEmail(data.email)
       setEmailSent(true)
       setLoading(false)
       return
     }
 
+    // Email sudah konfirmasi (atau confirm dimatikan) — buat store dan masuk
     const db = supabase as any
     await db.from('stores').insert({ user_id: authData.user.id, nama: data.namaToko })
     router.push('/dashboard')
