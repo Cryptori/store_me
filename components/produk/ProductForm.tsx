@@ -20,16 +20,18 @@ export default function ProdukForm({ product }: { product?: Product }) {
     resolver: zodResolver(produkSchema) as any,
     defaultValues: product ? {
       nama: product.nama,
-      harga: product.harga,
+      sku: product.sku ?? '',
+      harga_beli: product.harga_beli,
+      harga_jual: product.harga_jual,
       stok: product.stok,
       stok_minimum: product.stok_minimum,
       satuan: product.satuan,
-      kategori: product.kategori ?? '',
-      barcode: product.barcode ?? '',
+      category_id: product.category_id ?? '',
     } : {
       stok: 0,
       stok_minimum: 5,
       satuan: 'pcs',
+      harga_beli: 0,
     }
   })
 
@@ -41,23 +43,25 @@ export default function ProdukForm({ product }: { product?: Product }) {
     if (isEdit && product) {
       await (supabase as any).from('products').update({
         nama: data.nama,
-        harga: data.harga,
+        sku: data.sku || null,
+        harga_beli: data.harga_beli,
+        harga_jual: data.harga_jual,
         stok: data.stok,
         stok_minimum: data.stok_minimum,
         satuan: data.satuan,
-        kategori: data.kategori || null,
-        barcode: data.barcode || null,
+        category_id: data.category_id || null,
       }).eq('id', product.id)
     } else {
       await (supabase as any).from('products').insert({
         store_id: store.id,
         nama: data.nama,
-        harga: data.harga,
+        sku: data.sku || null,
+        harga_beli: data.harga_beli,
+        harga_jual: data.harga_jual,
         stok: data.stok,
         stok_minimum: data.stok_minimum,
         satuan: data.satuan,
-        kategori: data.kategori || null,
-        barcode: data.barcode || null,
+        category_id: data.category_id || null,
       })
     }
 
@@ -89,19 +93,24 @@ export default function ProdukForm({ product }: { product?: Product }) {
             {errors.nama && <p className="text-red-400 text-xs mt-1">{errors.nama.message}</p>}
           </div>
 
+          <div>
+            <label className="block text-xs font-semibold text-[#94a3b8] mb-1.5 uppercase tracking-wide">SKU / Kode Produk</label>
+            <input {...register('sku')} placeholder="Opsional"
+              className="w-full px-4 py-3 rounded-xl bg-[#1e2333] border border-[#2a3045] text-white placeholder-[#3a4560] text-sm outline-none focus:ring-2 focus:ring-green-500/40 focus:border-green-500/50 transition-all" />
+          </div>
+
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-xs font-semibold text-[#94a3b8] mb-1.5 uppercase tracking-wide">Harga Jual (Rp) *</label>
-              <input {...register('harga', { valueAsNumber: true })} type="number" placeholder="5000"
-                className={`w-full px-4 py-3 rounded-xl bg-[#1e2333] border text-white placeholder-[#3a4560] text-sm outline-none focus:ring-2 focus:ring-green-500/40 transition-all ${errors.harga ? 'border-red-500/50' : 'border-[#2a3045] focus:border-green-500/50'}`} />
-              {errors.harga && <p className="text-red-400 text-xs mt-1">{errors.harga.message}</p>}
+              <label className="block text-xs font-semibold text-[#94a3b8] mb-1.5 uppercase tracking-wide">Harga Beli (Rp)</label>
+              <input {...register('harga_beli', { valueAsNumber: true })} type="number" placeholder="0"
+                className={`w-full px-4 py-3 rounded-xl bg-[#1e2333] border text-white placeholder-[#3a4560] text-sm outline-none focus:ring-2 focus:ring-green-500/40 transition-all ${errors.harga_beli ? 'border-red-500/50' : 'border-[#2a3045] focus:border-green-500/50'}`} />
+              {errors.harga_beli && <p className="text-red-400 text-xs mt-1">{errors.harga_beli.message}</p>}
             </div>
             <div>
-              <label className="block text-xs font-semibold text-[#94a3b8] mb-1.5 uppercase tracking-wide">Satuan *</label>
-              <select {...register('satuan')}
-                className="w-full px-4 py-3 rounded-xl bg-[#1e2333] border border-[#2a3045] text-white text-sm outline-none focus:ring-2 focus:ring-green-500/40 focus:border-green-500/50 transition-all">
-                {SATUAN_PRODUK.map((s: string) => <option key={s} value={s}>{s}</option>)}
-              </select>
+              <label className="block text-xs font-semibold text-[#94a3b8] mb-1.5 uppercase tracking-wide">Harga Jual (Rp) *</label>
+              <input {...register('harga_jual', { valueAsNumber: true })} type="number" placeholder="5000"
+                className={`w-full px-4 py-3 rounded-xl bg-[#1e2333] border text-white placeholder-[#3a4560] text-sm outline-none focus:ring-2 focus:ring-green-500/40 transition-all ${errors.harga_jual ? 'border-red-500/50' : 'border-[#2a3045] focus:border-green-500/50'}`} />
+              {errors.harga_jual && <p className="text-red-400 text-xs mt-1">{errors.harga_jual.message}</p>}
             </div>
           </div>
 
@@ -121,15 +130,11 @@ export default function ProdukForm({ product }: { product?: Product }) {
           </div>
 
           <div>
-            <label className="block text-xs font-semibold text-[#94a3b8] mb-1.5 uppercase tracking-wide">Kategori</label>
-            <input {...register('kategori')} placeholder="Contoh: Minuman, Makanan, dll"
-              className="w-full px-4 py-3 rounded-xl bg-[#1e2333] border border-[#2a3045] text-white placeholder-[#3a4560] text-sm outline-none focus:ring-2 focus:ring-green-500/40 focus:border-green-500/50 transition-all" />
-          </div>
-
-          <div>
-            <label className="block text-xs font-semibold text-[#94a3b8] mb-1.5 uppercase tracking-wide">Barcode</label>
-            <input {...register('barcode')} placeholder="Opsional"
-              className="w-full px-4 py-3 rounded-xl bg-[#1e2333] border border-[#2a3045] text-white placeholder-[#3a4560] text-sm outline-none focus:ring-2 focus:ring-green-500/40 focus:border-green-500/50 transition-all" />
+            <label className="block text-xs font-semibold text-[#94a3b8] mb-1.5 uppercase tracking-wide">Satuan *</label>
+            <select {...register('satuan')}
+              className="w-full px-4 py-3 rounded-xl bg-[#1e2333] border border-[#2a3045] text-white text-sm outline-none focus:ring-2 focus:ring-green-500/40 focus:border-green-500/50 transition-all">
+              {SATUAN_PRODUK.map((s: string) => <option key={s} value={s}>{s}</option>)}
+            </select>
           </div>
         </div>
 
