@@ -18,7 +18,6 @@ export default function ProdukPage() {
   const [search, setSearch] = useState('')
   const [loading, setLoading] = useState(true)
   const [deleting, setDeleting] = useState<string | null>(null)
-  const supabase = createClient()
 
   useEffect(() => { if (store) fetchProducts() }, [store])
 
@@ -30,10 +29,12 @@ export default function ProdukPage() {
   }, [search, products])
 
   async function fetchProducts() {
+    const supabase = createClient()
     const { data } = await supabase
       .from('products')
       .select('*')
       .eq('store_id', store!.id)
+      .eq('is_active', true)
       .order('nama')
     setProducts((data ?? []) as Product[])
     setFiltered((data ?? []) as Product[])
@@ -43,8 +44,8 @@ export default function ProdukPage() {
   async function deleteProduct(id: string) {
     if (!confirm('Hapus produk ini?')) return
     setDeleting(id)
-    const db = supabase as any   // bypass type
-    await db.from('products').update({ is_active: false }).eq('id', id)
+    const supabase = createClient()
+    await (supabase as any).from('products').update({ is_active: false }).eq('id', id)
     setProducts(prev => prev.filter(p => p.id !== id))
     setDeleting(null)
   }
@@ -112,9 +113,7 @@ export default function ProdukPage() {
                       </div>
                     </td>
                     <td className="px-4 py-3">
-                      <span className={`text-[10px] font-bold px-2 py-1 rounded-md ${p.is_active ? 'bg-green-400/10 text-green-400' : 'bg-red-400/10 text-red-400'}`}>
-                        {p.is_active ? 'AKTIF' : 'NONAKTIF'}
-                      </span>
+                      <span className="text-[10px] font-bold px-2 py-1 rounded-md bg-green-400/10 text-green-400">AKTIF</span>
                     </td>
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-2">
