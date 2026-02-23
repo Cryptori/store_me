@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import type { Store } from '@/types/database'
 
@@ -8,6 +9,7 @@ export function useStore() {
   const [store, setStore] = useState<Store | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const router = useRouter()
 
   useEffect(() => {
     async function fetchStore() {
@@ -32,12 +34,11 @@ export function useStore() {
           return
         }
 
-        // Store belum ada — kemungkinan user baru konfirmasi email
-        // Cek metadata untuk nama toko
+        // Store belum ada
         const namaToko = user.user_metadata?.nama_toko
 
         if (namaToko) {
-          // Buat store otomatis dari metadata
+          // User email — buat store dari metadata
           const db = supabase as any
           const { data: newStore, error: storeError } = await db
             .from('stores')
@@ -50,9 +51,9 @@ export function useStore() {
           } else {
             setError('Gagal membuat toko, coba refresh')
           }
-        } else if (error) {
-          // Store benar-benar tidak ada dan tidak ada metadata
-          setError('Toko tidak ditemukan')
+        } else {
+          // User Google — redirect ke onboarding
+          router.push('/onboarding')
         }
       } catch (err) {
         setError('Gagal memuat data toko')
