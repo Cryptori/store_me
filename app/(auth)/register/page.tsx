@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { Eye, EyeOff, Loader2, Store, Check } from 'lucide-react'
+import { Eye, EyeOff, Loader2, Store, Check, Mail } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { registerSchema, type RegisterInput } from '@/lib/validations'
 
@@ -16,6 +16,8 @@ export default function RegisterPage() {
   const [showConfirm, setShowConfirm] = useState(false)
   const [serverError, setServerError] = useState('')
   const [loading, setLoading] = useState(false)
+  const [emailSent, setEmailSent] = useState(false)
+  const [sentEmail, setSentEmail] = useState('')
 
   const { register, handleSubmit, formState: { errors } } = useForm<RegisterInput>({
     resolver: zodResolver(registerSchema) as any,
@@ -26,10 +28,13 @@ export default function RegisterPage() {
     setServerError('')
     const supabase = createClient()
 
-    // Step 1: Buat akun
+    // Step 1: Buat akun dengan metadata nama toko
     const { data: authData, error: authError } = await supabase.auth.signUp({
       email: data.email,
       password: data.password,
+      options: {
+        data: { nama_toko: data.namaToko }, // simpan sementara di metadata
+      }
     })
 
     if (authError || !authData.user) {
@@ -42,21 +47,21 @@ export default function RegisterPage() {
       return
     }
 
-    // Step 2: Login langsung untuk aktivasi session
-    // (signUp tidak selalu set session aktif, terutama jika email confirm dimatikan)
+    // Step 2: Coba login langsung (berhasil jika email confirm dimatikan)
     const { error: signInError } = await supabase.auth.signInWithPassword({
       email: data.email,
       password: data.password,
     })
 
     if (signInError) {
-      // Kalau email confirmation aktif di Supabase, user perlu konfirmasi dulu
-      setServerError('Akun dibuat! Cek email kamu untuk konfirmasi, lalu login.')
+      // Email confirmation aktif — tampilkan halaman "cek email"
+      setSentEmail(data.email)
+      setEmailSent(true)
       setLoading(false)
       return
     }
 
-    // Step 3: Buat toko setelah session aktif
+    // Step 3: Login berhasil — buat toko langsung
     const db = supabase as any
     const { error: storeError } = await db.from('stores').insert({
       user_id: authData.user.id,
@@ -81,6 +86,35 @@ export default function RegisterPage() {
     'Laporan harian otomatis',
   ]
 
+  // ===== HALAMAN CEK EMAIL =====
+  if (emailSent) return (
+    <div className="min-h-screen bg-[#0a0d14] flex items-center justify-center p-6">
+      <div className="bg-[#181c27] border border-[#2a3045] rounded-2xl p-10 text-center max-w-sm w-full">
+        <div className="w-16 h-16 rounded-full bg-green-400/20 border-2 border-green-400/30 flex items-center justify-center mx-auto mb-4">
+          <Mail className="w-8 h-8 text-green-400" />
+        </div>
+        <h2 className="text-xl font-black text-white mb-2">Cek Email Kamu!</h2>
+        <p className="text-[#64748b] text-sm mb-2">
+          Kami kirim link verifikasi ke:
+        </p>
+        <p className="text-white font-semibold text-sm mb-6 font-mono">{sentEmail}</p>
+        <p className="text-[#64748b] text-xs mb-6">
+          Klik link di email untuk mengaktifkan akun, lalu login. Cek folder spam jika tidak ada.
+        </p>
+        <Link href="/login"
+          className="block w-full py-3 bg-green-400 hover:bg-green-300 text-[#0a0d14] rounded-xl font-black text-sm transition-colors">
+          Ke Halaman Login →
+        </Link>
+        <button
+          onClick={() => { setEmailSent(false); setServerError('') }}
+          className="mt-3 text-xs text-[#64748b] hover:text-white transition-colors">
+          ← Kembali ke form
+        </button>
+      </div>
+    </div>
+  )
+
+  // ===== FORM REGISTER =====
   return (
     <div className="flex w-full min-h-screen">
       {/* LEFT PANEL */}
@@ -161,45 +195,24 @@ export default function RegisterPage() {
           <form onSubmit={handleSubmit(onSubmit as any)} className="space-y-4">
             <div>
               <label className="block text-xs font-semibold text-[#94a3b8] mb-1.5 uppercase tracking-wide">Nama Toko</label>
-              <input
-                {...register('namaToko')}
-                type="text"
-                placeholder="Warung Berkah Jaya"
-                className={`w-full px-4 py-3 rounded-xl bg-[#181c27] border text-white placeholder-[#3a4560] text-sm outline-none focus:ring-2 focus:ring-green-500/40 transition-all ${
-                  errors.namaToko ? 'border-red-500/50' : 'border-[#2a3045] focus:border-green-500/50'
-                }`}
-              />
+              <input {...register('namaToko')} type="text" placeholder="Warung Berkah Jaya"
+                className={`w-full px-4 py-3 rounded-xl bg-[#181c27] border text-white placeholder-[#3a4560] text-sm outline-none focus:ring-2 focus:ring-green-500/40 transition-all ${errors.namaToko ? 'border-red-500/50' : 'border-[#2a3045] focus:border-green-500/50'}`} />
               {errors.namaToko && <p className="text-red-400 text-xs mt-1">{errors.namaToko.message}</p>}
             </div>
 
             <div>
               <label className="block text-xs font-semibold text-[#94a3b8] mb-1.5 uppercase tracking-wide">Email</label>
-              <input
-                {...register('email')}
-                type="email"
-                placeholder="toko@email.com"
-                autoComplete="email"
-                className={`w-full px-4 py-3 rounded-xl bg-[#181c27] border text-white placeholder-[#3a4560] text-sm outline-none focus:ring-2 focus:ring-green-500/40 transition-all ${
-                  errors.email ? 'border-red-500/50' : 'border-[#2a3045] focus:border-green-500/50'
-                }`}
-              />
+              <input {...register('email')} type="email" placeholder="toko@email.com" autoComplete="email"
+                className={`w-full px-4 py-3 rounded-xl bg-[#181c27] border text-white placeholder-[#3a4560] text-sm outline-none focus:ring-2 focus:ring-green-500/40 transition-all ${errors.email ? 'border-red-500/50' : 'border-[#2a3045] focus:border-green-500/50'}`} />
               {errors.email && <p className="text-red-400 text-xs mt-1">{errors.email.message}</p>}
             </div>
 
             <div>
               <label className="block text-xs font-semibold text-[#94a3b8] mb-1.5 uppercase tracking-wide">Password</label>
               <div className="relative">
-                <input
-                  {...register('password')}
-                  type={showPassword ? 'text' : 'password'}
-                  placeholder="Minimal 6 karakter"
-                  autoComplete="new-password"
-                  className={`w-full px-4 py-3 pr-11 rounded-xl bg-[#181c27] border text-white placeholder-[#3a4560] text-sm outline-none focus:ring-2 focus:ring-green-500/40 transition-all ${
-                    errors.password ? 'border-red-500/50' : 'border-[#2a3045] focus:border-green-500/50'
-                  }`}
-                />
-                <button type="button" onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-[#64748b] hover:text-white transition-colors">
+                <input {...register('password')} type={showPassword ? 'text' : 'password'} placeholder="Minimal 6 karakter" autoComplete="new-password"
+                  className={`w-full px-4 py-3 pr-11 rounded-xl bg-[#181c27] border text-white placeholder-[#3a4560] text-sm outline-none focus:ring-2 focus:ring-green-500/40 transition-all ${errors.password ? 'border-red-500/50' : 'border-[#2a3045] focus:border-green-500/50'}`} />
+                <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-3 top-1/2 -translate-y-1/2 text-[#64748b] hover:text-white transition-colors">
                   {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                 </button>
               </div>
@@ -209,17 +222,9 @@ export default function RegisterPage() {
             <div>
               <label className="block text-xs font-semibold text-[#94a3b8] mb-1.5 uppercase tracking-wide">Konfirmasi Password</label>
               <div className="relative">
-                <input
-                  {...register('confirmPassword')}
-                  type={showConfirm ? 'text' : 'password'}
-                  placeholder="Ulangi password"
-                  autoComplete="new-password"
-                  className={`w-full px-4 py-3 pr-11 rounded-xl bg-[#181c27] border text-white placeholder-[#3a4560] text-sm outline-none focus:ring-2 focus:ring-green-500/40 transition-all ${
-                    errors.confirmPassword ? 'border-red-500/50' : 'border-[#2a3045] focus:border-green-500/50'
-                  }`}
-                />
-                <button type="button" onClick={() => setShowConfirm(!showConfirm)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-[#64748b] hover:text-white transition-colors">
+                <input {...register('confirmPassword')} type={showConfirm ? 'text' : 'password'} placeholder="Ulangi password" autoComplete="new-password"
+                  className={`w-full px-4 py-3 pr-11 rounded-xl bg-[#181c27] border text-white placeholder-[#3a4560] text-sm outline-none focus:ring-2 focus:ring-green-500/40 transition-all ${errors.confirmPassword ? 'border-red-500/50' : 'border-[#2a3045] focus:border-green-500/50'}`} />
+                <button type="button" onClick={() => setShowConfirm(!showConfirm)} className="absolute right-3 top-1/2 -translate-y-1/2 text-[#64748b] hover:text-white transition-colors">
                   {showConfirm ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                 </button>
               </div>
@@ -232,16 +237,9 @@ export default function RegisterPage() {
               </div>
             )}
 
-            <button
-              type="submit"
-              disabled={loading}
-              className="w-full py-3 rounded-xl bg-green-400 hover:bg-green-300 text-[#0a0d14] font-black text-sm transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 mt-2"
-            >
-              {loading ? (
-                <><Loader2 className="w-4 h-4 animate-spin" /> Membuat akun...</>
-              ) : (
-                'Daftar Gratis →'
-              )}
+            <button type="submit" disabled={loading}
+              className="w-full py-3 rounded-xl bg-green-400 hover:bg-green-300 text-[#0a0d14] font-black text-sm transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 mt-2">
+              {loading ? <><Loader2 className="w-4 h-4 animate-spin" /> Membuat akun...</> : 'Daftar Gratis →'}
             </button>
           </form>
 

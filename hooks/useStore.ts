@@ -26,8 +26,34 @@ export function useStore() {
           .eq('user_id', user.id)
           .single()
 
-        if (error) throw error
-        setStore(data)
+        if (data) {
+          setStore(data)
+          setLoading(false)
+          return
+        }
+
+        // Store belum ada — kemungkinan user baru konfirmasi email
+        // Cek metadata untuk nama toko
+        const namaToko = user.user_metadata?.nama_toko
+
+        if (namaToko) {
+          // Buat store otomatis dari metadata
+          const db = supabase as any
+          const { data: newStore, error: storeError } = await db
+            .from('stores')
+            .insert({ user_id: user.id, nama: namaToko })
+            .select()
+            .single()
+
+          if (!storeError && newStore) {
+            setStore(newStore)
+          } else {
+            setError('Gagal membuat toko, coba refresh')
+          }
+        } else if (error) {
+          // Store benar-benar tidak ada dan tidak ada metadata
+          setError('Toko tidak ditemukan')
+        }
       } catch (err) {
         setError('Gagal memuat data toko')
         console.error(err)
