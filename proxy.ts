@@ -30,7 +30,9 @@ export async function proxy(request: NextRequest) {
   const isAuthPage = request.nextUrl.pathname.startsWith('/login') ||
     request.nextUrl.pathname.startsWith('/register')
 
-  const isPublicPage = request.nextUrl.pathname === '/'
+  const isPublicPage = request.nextUrl.pathname === '/' ||
+    request.nextUrl.pathname.startsWith('/onboarding') ||
+    request.nextUrl.pathname.startsWith('/auth')
 
   // Kalau belum login dan bukan halaman publik/auth → redirect ke login
   if (!user && !isAuthPage && !isPublicPage) {
