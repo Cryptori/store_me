@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation'
 import { Menu } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { useStore } from '@/hooks/useStore'
-import Sidebar from '@/components/layout/sidebar'
+import Sidebar from '@/components/layout/Sidebar'
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter()

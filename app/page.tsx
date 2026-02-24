@@ -1,11 +1,25 @@
+import { createClient } from '@/lib/supabase/server'
+import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import { Store, Check, ArrowRight, ShoppingCart, Package, Users, BarChart2 } from 'lucide-react'
 
-export default function LandingPage() {
+const FEATURES = [
+  { icon: ShoppingCart, label: 'Kasir Cepat', desc: 'Transaksi dalam hitungan detik' },
+  { icon: Package, label: 'Kelola Stok', desc: 'Alert otomatis stok menipis' },
+  { icon: Users, label: 'Hutang Pelanggan', desc: 'Tidak ada hutang yang terlewat' },
+  { icon: BarChart2, label: 'Laporan Harian', desc: 'Ringkasan penjualan otomatis' },
+]
+
+export default async function LandingPage() {
+  // Server-side auth check — user yang sudah login langsung ke dashboard
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (user) redirect('/dashboard')
+
   return (
     <div className="min-h-screen bg-[#0a0d14] text-white">
       {/* Navbar */}
-      <nav className="flex items-center justify-between px-8 py-5 border-b border-[#1e2333]">
+      <nav className="flex items-center justify-between px-6 md:px-8 py-5 border-b border-[#1e2333]">
         <div className="flex items-center gap-2.5">
           <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-green-400 to-cyan-400 flex items-center justify-center">
             <Store className="w-4 h-4 text-[#0a0d14]" strokeWidth={2.5} />
@@ -23,7 +37,7 @@ export default function LandingPage() {
       </nav>
 
       {/* Hero */}
-      <section className="text-center px-6 py-24 relative">
+      <section className="text-center px-6 py-20 md:py-24 relative">
         <div className="absolute inset-0 opacity-5">
           <div className="absolute inset-0" style={{ backgroundImage: 'radial-gradient(circle at 1px 1px, #4ade80 1px, transparent 0)', backgroundSize: '40px 40px' }} />
         </div>
@@ -31,17 +45,19 @@ export default function LandingPage() {
           <div className="inline-flex items-center gap-2 bg-green-400/10 border border-green-400/20 rounded-full px-4 py-1.5 mb-6">
             <span className="text-green-400 text-xs font-bold uppercase tracking-wide">Gratis untuk mulai</span>
           </div>
-          <h1 className="text-5xl font-black leading-tight mb-5">
+          <h1 className="text-4xl md:text-5xl font-black leading-tight mb-5">
             Kasir & manajemen toko<br /><span className="text-green-400">simpel untuk UMKM</span>
           </h1>
-          <p className="text-[#64748b] text-lg mb-8 max-w-xl mx-auto">
+          <p className="text-[#64748b] text-base md:text-lg mb-8 max-w-xl mx-auto">
             Catat penjualan, kelola stok, dan pantau hutang pelanggan — semua dari satu tempat. Setup 5 menit.
           </p>
-          <div className="flex items-center justify-center gap-4">
-            <Link href="/register" className="flex items-center gap-2 px-6 py-3.5 bg-green-400 hover:bg-green-300 text-[#0a0d14] rounded-xl font-black transition-colors">
+          <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
+            <Link href="/register"
+              className="flex items-center gap-2 px-6 py-3.5 bg-green-400 hover:bg-green-300 text-[#0a0d14] rounded-xl font-black transition-colors w-full sm:w-auto justify-center">
               Mulai Gratis <ArrowRight className="w-4 h-4" />
             </Link>
-            <Link href="/login" className="px-6 py-3.5 bg-[#181c27] border border-[#2a3045] text-white hover:bg-[#1e2333] rounded-xl font-bold text-sm transition-colors">
+            <Link href="/login"
+              className="px-6 py-3.5 bg-[#181c27] border border-[#2a3045] text-white hover:bg-[#1e2333] rounded-xl font-bold text-sm transition-colors w-full sm:w-auto text-center">
               Sudah punya akun?
             </Link>
           </div>
@@ -49,14 +65,9 @@ export default function LandingPage() {
       </section>
 
       {/* Features */}
-      <section className="px-8 py-16 max-w-5xl mx-auto">
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-5">
-          {[
-            { icon: ShoppingCart, label: 'Kasir Cepat', desc: 'Transaksi dalam hitungan detik' },
-            { icon: Package, label: 'Kelola Stok', desc: 'Alert otomatis stok menipis' },
-            { icon: Users, label: 'Hutang Pelanggan', desc: 'Tidak ada hutang yang terlewat' },
-            { icon: BarChart2, label: 'Laporan Harian', desc: 'Ringkasan penjualan otomatis' },
-          ].map(({ icon: Icon, label, desc }) => (
+      <section className="px-6 md:px-8 py-16 max-w-5xl mx-auto">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 md:gap-5">
+          {FEATURES.map(({ icon: Icon, label, desc }) => (
             <div key={label} className="bg-[#181c27] border border-[#2a3045] rounded-xl p-5 hover:border-green-500/30 transition-colors">
               <div className="w-10 h-10 rounded-xl bg-green-400/10 flex items-center justify-center mb-3">
                 <Icon className="w-5 h-5 text-green-400" />
@@ -72,14 +83,15 @@ export default function LandingPage() {
       <section className="text-center px-6 py-16">
         <h2 className="text-2xl font-black mb-3">Mulai kelola toko hari ini</h2>
         <p className="text-[#64748b] mb-6">Gratis selamanya. Upgrade kalau butuh lebih.</p>
-        <Link href="/register" className="inline-flex items-center gap-2 px-6 py-3.5 bg-green-400 hover:bg-green-300 text-[#0a0d14] rounded-xl font-black transition-colors">
+        <Link href="/register"
+          className="inline-flex items-center gap-2 px-6 py-3.5 bg-green-400 hover:bg-green-300 text-[#0a0d14] rounded-xl font-black transition-colors">
           Daftar Sekarang — Gratis <ArrowRight className="w-4 h-4" />
         </Link>
       </section>
 
       {/* Footer */}
       <footer className="text-center py-8 border-t border-[#1e2333] text-[#64748b] text-sm">
-        <p>© 2026 TokoKu. Dibuat dengan ❤️ untuk UMKM Indonesia.</p>
+        <p>© {new Date().getFullYear()} TokoKu. Dibuat dengan ❤️ untuk UMKM Indonesia.</p>
       </footer>
     </div>
   )
