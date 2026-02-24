@@ -2,7 +2,7 @@
 export const dynamic = 'force-dynamic'
 
 import { useState, useEffect } from 'react'
-import { Search, Plus, Minus, Trash2, ShoppingCart, User, CreditCard, Banknote, QrCode, Loader2, X } from 'lucide-react'
+import { Search, Plus, Minus, Trash2, ShoppingCart, User, CreditCard, Banknote, QrCode, Loader2, X, ChevronUp } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { formatRupiah, hitungKembalian } from '@/lib/utils'
 import { useStore } from '@/hooks/useStore'
@@ -19,134 +19,61 @@ type CartItem = {
 
 type MetodeBayar = 'tunai' | 'transfer' | 'qris' | 'hutang'
 
-// ===== FUNGSI PRINT STRUK =====
-function printStruk({
-  storeName,
-  nomorTransaksi,
-  cart,
-  total,
-  metodeBayar,
-  bayar,
-  kembalian,
-  customerName,
-}: {
-  storeName: string
-  nomorTransaksi: string
-  cart: CartItem[]
-  total: number
-  metodeBayar: MetodeBayar
-  bayar: number
-  kembalian: number
-  customerName?: string
+function printStruk({ storeName, nomorTransaksi, cart, total, metodeBayar, bayar, kembalian, customerName }: {
+  storeName: string; nomorTransaksi: string; cart: CartItem[]; total: number
+  metodeBayar: MetodeBayar; bayar: number; kembalian: number; customerName?: string
 }) {
-  const tanggal = new Date().toLocaleDateString('id-ID', {
-    day: '2-digit', month: '2-digit', year: 'numeric',
-    hour: '2-digit', minute: '2-digit'
-  })
-
-  const metodLabel: Record<MetodeBayar, string> = {
-    tunai: 'Tunai',
-    transfer: 'Transfer',
-    qris: 'QRIS',
-    hutang: 'Hutang',
-  }
-
+  const tanggal = new Date().toLocaleDateString('id-ID', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })
+  const metodLabel: Record<MetodeBayar, string> = { tunai: 'Tunai', transfer: 'Transfer', qris: 'QRIS', hutang: 'Hutang' }
   const itemsHtml = cart.map(item => `
     <tr>
       <td style="padding:2px 0">${item.nama_produk}</td>
       <td style="text-align:center;padding:2px 4px">${item.qty}</td>
       <td style="text-align:right;padding:2px 0">${formatRupiah(item.harga_jual)}</td>
       <td style="text-align:right;padding:2px 0">${formatRupiah(item.subtotal)}</td>
-    </tr>
-  `).join('')
+    </tr>`).join('')
 
-  const struKHtml = `
-    <!DOCTYPE html>
-    <html>
-    <head>
-      <meta charset="utf-8">
-      <title>Struk - ${nomorTransaksi}</title>
-      <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { font-family: 'Courier New', monospace; font-size: 12px; width: 280px; margin: 0 auto; padding: 10px; }
-        .center { text-align: center; }
-        .bold { font-weight: bold; }
-        .divider { border-top: 1px dashed #000; margin: 6px 0; }
-        table { width: 100%; border-collapse: collapse; }
-        th { text-align: left; font-size: 11px; padding: 2px 0; }
-        .total-row td { font-weight: bold; font-size: 13px; padding-top: 4px; }
-      </style>
-    </head>
-    <body>
-      <div class="center bold" style="font-size:16px;margin-bottom:4px">${storeName}</div>
-      <div class="center" style="font-size:11px;color:#555">Terima kasih telah berbelanja</div>
-      <div class="divider"></div>
-      <div style="font-size:11px">
-        <div>No: ${nomorTransaksi}</div>
-        <div>Tgl: ${tanggal}</div>
-        ${customerName ? `<div>Pelanggan: ${customerName}</div>` : ''}
-        <div>Bayar: ${metodLabel[metodeBayar]}</div>
-      </div>
-      <div class="divider"></div>
-      <table>
-        <thead>
-          <tr>
-            <th>Item</th>
-            <th style="text-align:center">Qty</th>
-            <th style="text-align:right">Harga</th>
-            <th style="text-align:right">Total</th>
-          </tr>
-        </thead>
-        <tbody>${itemsHtml}</tbody>
-      </table>
-      <div class="divider"></div>
-      <table>
-        <tr class="total-row">
-          <td colspan="3">TOTAL</td>
-          <td style="text-align:right">${formatRupiah(total)}</td>
-        </tr>
-        ${metodeBayar === 'tunai' ? `
-        <tr>
-          <td colspan="3" style="font-size:11px">Bayar</td>
-          <td style="text-align:right;font-size:11px">${formatRupiah(bayar)}</td>
-        </tr>
-        <tr>
-          <td colspan="3" style="font-size:11px">Kembali</td>
-          <td style="text-align:right;font-size:11px">${formatRupiah(kembalian)}</td>
-        </tr>
-        ` : ''}
-        ${metodeBayar === 'hutang' ? `
-        <tr>
-          <td colspan="4" style="font-size:11px;color:#c00">* Dicatat sebagai hutang</td>
-        </tr>
-        ` : ''}
-      </table>
-      <div class="divider"></div>
-      <div class="center" style="font-size:11px">TokoKu — kelolastok.com</div>
-      <div class="center" style="font-size:10px;color:#777;margin-top:2px">Simpan struk ini sebagai bukti pembelian</div>
-    </body>
-    </html>
-  `
+  const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Struk - ${nomorTransaksi}</title>
+    <style>* { margin:0; padding:0; box-sizing:border-box; } body { font-family:'Courier New',monospace; font-size:12px; width:280px; margin:0 auto; padding:10px; }
+    .center { text-align:center; } .bold { font-weight:bold; } .divider { border-top:1px dashed #000; margin:6px 0; }
+    table { width:100%; border-collapse:collapse; } th { text-align:left; font-size:11px; padding:2px 0; } .total-row td { font-weight:bold; font-size:13px; padding-top:4px; }</style>
+    </head><body>
+    <div class="center bold" style="font-size:16px;margin-bottom:4px">${storeName}</div>
+    <div class="center" style="font-size:11px;color:#555">Terima kasih telah berbelanja</div>
+    <div class="divider"></div>
+    <div style="font-size:11px"><div>No: ${nomorTransaksi}</div><div>Tgl: ${tanggal}</div>
+    ${customerName ? `<div>Pelanggan: ${customerName}</div>` : ''}<div>Bayar: ${metodLabel[metodeBayar]}</div></div>
+    <div class="divider"></div>
+    <table><thead><tr><th>Item</th><th style="text-align:center">Qty</th><th style="text-align:right">Harga</th><th style="text-align:right">Total</th></tr></thead>
+    <tbody>${itemsHtml}</tbody></table>
+    <div class="divider"></div>
+    <table>
+      <tr class="total-row"><td colspan="3">TOTAL</td><td style="text-align:right">${formatRupiah(total)}</td></tr>
+      ${metodeBayar === 'tunai' ? `<tr><td colspan="3" style="font-size:11px">Bayar</td><td style="text-align:right;font-size:11px">${formatRupiah(bayar)}</td></tr>
+      <tr><td colspan="3" style="font-size:11px">Kembali</td><td style="text-align:right;font-size:11px">${formatRupiah(kembalian)}</td></tr>` : ''}
+      ${metodeBayar === 'hutang' ? `<tr><td colspan="4" style="font-size:11px;color:#c00">* Dicatat sebagai hutang</td></tr>` : ''}
+    </table>
+    <div class="divider"></div>
+    <div class="center" style="font-size:11px">TokoKu — kelolastok.com</div>
+    <div class="center" style="font-size:10px;color:#777;margin-top:2px">Simpan struk ini sebagai bukti pembelian</div>
+    </body></html>`
 
   const win = window.open('', '_blank', 'width=320,height=600')
   if (!win) return
-  win.document.write(struKHtml)
+  win.document.write(html)
   win.document.close()
   win.focus()
-  setTimeout(() => {
-    win.print()
-    win.close()
-  }, 300)
+  setTimeout(() => { win.print(); win.close() }, 300)
 }
 
 export default function KasirPage() {
   const { store } = useStore()
-
   const [products, setProducts] = useState<Product[]>([])
   const [filteredProducts, setFilteredProducts] = useState<Product[]>([])
   const [search, setSearch] = useState('')
   const [loadingProducts, setLoadingProducts] = useState(true)
   const [cart, setCart] = useState<CartItem[]>([])
+  const [showCart, setShowCart] = useState(false) // mobile cart toggle
   const [showCheckout, setShowCheckout] = useState(false)
   const [metodeBayar, setMetodeBayar] = useState<MetodeBayar>('tunai')
   const [bayar, setBayar] = useState('')
@@ -168,8 +95,7 @@ export default function KasirPage() {
     if (!store) return
     async function fetchProducts() {
       const supabase = createClient()
-      const { data } = await supabase
-        .from('products').select('*')
+      const { data } = await supabase.from('products').select('*')
         .eq('store_id', store!.id).eq('is_active', true).gt('stok', 0).order('nama')
       setProducts((data ?? []) as Product[])
       setFilteredProducts((data ?? []) as Product[])
@@ -182,8 +108,7 @@ export default function KasirPage() {
     if (!store) return
     async function fetchCustomers() {
       const supabase = createClient()
-      const { data } = await supabase
-        .from('customers').select('*').eq('store_id', store!.id).order('nama')
+      const { data } = await supabase.from('customers').select('*').eq('store_id', store!.id).order('nama')
       setCustomers((data ?? []) as Customer[])
     }
     fetchCustomers()
@@ -191,21 +116,19 @@ export default function KasirPage() {
 
   useEffect(() => {
     const q = search.toLowerCase()
-    setFilteredProducts(products.filter(p =>
-      p.nama.toLowerCase().includes(q) || (p.sku ?? '').toLowerCase().includes(q)
-    ))
+    setFilteredProducts(products.filter(p => p.nama.toLowerCase().includes(q) || (p.sku ?? '').toLowerCase().includes(q)))
   }, [search, products])
 
   const total = cart.reduce((sum, item) => sum + item.subtotal, 0)
   const kembalian = metodeBayar === 'tunai' ? hitungKembalian(total, Number(bayar)) : 0
+  const totalQty = cart.reduce((s, i) => s + i.qty, 0)
 
   function addToCart(product: Product) {
     setCart(prev => {
       const existing = prev.find(i => i.product_id === product.id)
       if (existing) {
         if (existing.qty >= product.stok) return prev
-        return prev.map(i => i.product_id === product.id
-          ? { ...i, qty: i.qty + 1, subtotal: (i.qty + 1) * i.harga_jual } : i)
+        return prev.map(i => i.product_id === product.id ? { ...i, qty: i.qty + 1, subtotal: (i.qty + 1) * i.harga_jual } : i)
       }
       return [...prev, { product_id: product.id, nama_produk: product.nama, harga_jual: product.harga_jual, qty: 1, stok: product.stok, subtotal: product.harga_jual }]
     })
@@ -228,9 +151,12 @@ export default function KasirPage() {
     setLoadingCheckout(true)
 
     const supabase = createClient()
+
+    // 1. Generate nomor transaksi
     const { data: nomorData } = await supabase.rpc('generate_nomor_transaksi', { p_store_id: store.id })
     const nomor = nomorData as string
 
+    // 2. Simpan transaksi
     const { data: trx, error: trxError } = await (supabase as any).from('transactions').insert({
       store_id: store.id,
       customer_id: selectedCustomer?.id ?? null,
@@ -248,6 +174,7 @@ export default function KasirPage() {
       return
     }
 
+    // 3. Simpan item transaksi
     await (supabase as any).from('transaction_items').insert(cart.map(item => ({
       transaction_id: trx.id,
       product_id: item.product_id,
@@ -257,16 +184,44 @@ export default function KasirPage() {
       subtotal: item.subtotal,
     })))
 
+    // 4. Kurangi stok + catat stock_logs
+    for (const item of cart) {
+      // Ambil stok sebelum
+      const { data: produk } = await supabase.from('products').select('stok').eq('id', item.product_id).single()
+      const stokSebelum = (produk as any)?.stok ?? 0
+      const stokSesudah = stokSebelum - item.qty
+
+      // Kurangi stok
+      await (supabase as any).from('products').update({
+        stok: stokSesudah,
+        updated_at: new Date().toISOString(),
+      }).eq('id', item.product_id)
+
+      // Catat stock_log
+      await (supabase as any).from('stock_logs').insert({
+        product_id: item.product_id,
+        store_id: store.id,
+        tipe: 'keluar',
+        jumlah: item.qty,
+        stok_sebelum: stokSebelum,
+        stok_sesudah: stokSesudah,
+        keterangan: `Transaksi ${nomor}`,
+      })
+    }
+
+    // 5. Buat hutang kalau metode hutang
     if (metodeBayar === 'hutang' && selectedCustomer) {
       await (supabase as any).from('debts').insert({
         store_id: store.id,
         customer_id: selectedCustomer.id,
         transaction_id: trx.id,
-        jumlah: total, sisa: total, status: 'belum_lunas',
+        jumlah: total,
+        sisa: total,
+        status: 'belum_lunas',
       })
     }
 
-    // Simpan data untuk print
+    // 6. Simpan data untuk print
     setLastCart([...cart])
     setLastMetode(metodeBayar)
     setLastBayar(Number(bayar))
@@ -275,6 +230,7 @@ export default function KasirPage() {
     setLastCustomer(selectedCustomer)
     setLastTransaction(nomor)
 
+    // 7. Reset state
     setCart([])
     setShowCheckout(false)
     setMetodeBayar('tunai')
@@ -282,32 +238,88 @@ export default function KasirPage() {
     setSelectedCustomer(null)
     setLoadingCheckout(false)
     setShowSuccess(true)
+    setShowCart(false)
 
+    // 8. Refresh produk (update stok di UI)
     const { data: refreshed } = await supabase.from('products').select('*')
       .eq('store_id', store.id).eq('is_active', true).gt('stok', 0).order('nama')
     setProducts((refreshed ?? []) as Product[])
   }
 
-  const filteredCustomers = customers.filter(c =>
-    c.nama.toLowerCase().includes(customerSearch.toLowerCase())
-  )
+  const filteredCustomers = customers.filter(c => c.nama.toLowerCase().includes(customerSearch.toLowerCase()))
 
   function handlePrint() {
     if (!store || !lastTransaction) return
-    printStruk({
-      storeName: store.nama,
-      nomorTransaksi: lastTransaction,
-      cart: lastCart,
-      total: lastTotal,
-      metodeBayar: lastMetode,
-      bayar: lastBayar,
-      kembalian: lastKembalian,
-      customerName: lastCustomer?.nama,
-    })
+    printStruk({ storeName: store.nama, nomorTransaksi: lastTransaction, cart: lastCart, total: lastTotal, metodeBayar: lastMetode, bayar: lastBayar, kembalian: lastKembalian, customerName: lastCustomer?.nama })
   }
 
+  const CartPanel = () => (
+    <div className="flex flex-col h-full bg-[#181c27] border-l border-[#2a3045]">
+      <div className="p-4 border-b border-[#2a3045] flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <ShoppingCart className="w-4 h-4 text-green-400" />
+          <span className="font-bold text-sm">Keranjang</span>
+          {cart.length > 0 && <span className="bg-green-400 text-[#0a0d14] text-xs font-black px-1.5 py-0.5 rounded-full">{totalQty}</span>}
+        </div>
+        <div className="flex items-center gap-2">
+          {cart.length > 0 && (
+            <button onClick={() => setCart([])} className="text-xs text-[#64748b] hover:text-red-400 transition-colors flex items-center gap-1">
+              <Trash2 className="w-3 h-3" /> Kosongkan
+            </button>
+          )}
+          {/* Tombol close untuk mobile */}
+          <button onClick={() => setShowCart(false)} className="md:hidden text-[#64748b] hover:text-white">
+            <ChevronUp className="w-4 h-4" />
+          </button>
+        </div>
+      </div>
+
+      <div className="flex-1 overflow-y-auto p-3 space-y-2">
+        {cart.length === 0 ? (
+          <div className="flex flex-col items-center justify-center h-full text-[#64748b] py-12">
+            <ShoppingCart className="w-10 h-10 mb-3 opacity-30" />
+            <p className="text-sm font-medium">Keranjang kosong</p>
+          </div>
+        ) : cart.map(item => (
+          <div key={item.product_id} className="bg-[#1e2333] rounded-xl p-3 border border-[#2a3045]">
+            <div className="flex items-start justify-between mb-2">
+              <span className="text-sm font-semibold text-[#e2e8f0] leading-tight flex-1 pr-2">{item.nama_produk}</span>
+              <button onClick={() => removeFromCart(item.product_id)} className="text-[#64748b] hover:text-red-400 transition-colors">
+                <X className="w-3.5 h-3.5" />
+              </button>
+            </div>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-1">
+                <button onClick={() => updateQty(item.product_id, -1)} className="w-6 h-6 rounded-lg bg-[#2a3045] hover:bg-[#3a4055] text-white flex items-center justify-center"><Minus className="w-3 h-3" /></button>
+                <span className="w-8 text-center text-sm font-bold font-mono">{item.qty}</span>
+                <button onClick={() => updateQty(item.product_id, 1)} disabled={item.qty >= item.stok} className="w-6 h-6 rounded-lg bg-[#2a3045] hover:bg-[#3a4055] text-white flex items-center justify-center disabled:opacity-40"><Plus className="w-3 h-3" /></button>
+              </div>
+              <span className="text-green-400 font-black text-sm font-mono">{formatRupiah(item.subtotal)}</span>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      <div className="p-4 border-t border-[#2a3045] space-y-3">
+        <div onClick={() => setShowCustomerPicker(true)} className="w-full flex items-center gap-2 px-3 py-2.5 rounded-xl bg-[#1e2333] border border-[#2a3045] hover:border-[#3a4560] transition-colors cursor-pointer">
+          <User className="w-4 h-4 text-[#64748b] flex-shrink-0" />
+          <span className={`text-sm flex-1 ${selectedCustomer ? 'text-white font-semibold' : 'text-[#64748b]'}`}>{selectedCustomer ? selectedCustomer.nama : 'Pilih pelanggan (opsional)'}</span>
+          {selectedCustomer && <div onClick={e => { e.stopPropagation(); setSelectedCustomer(null) }} className="text-[#64748b] hover:text-red-400 cursor-pointer"><X className="w-3.5 h-3.5" /></div>}
+        </div>
+        <div className="flex items-center justify-between bg-[#1e2333] rounded-xl px-4 py-3 border border-[#2a3045]">
+          <span className="text-[#94a3b8] text-sm font-semibold">Total</span>
+          <span className="text-xl font-black text-white font-mono">{formatRupiah(total)}</span>
+        </div>
+        <button onClick={() => setShowCheckout(true)} disabled={cart.length === 0}
+          className="w-full py-3.5 rounded-xl bg-green-400 hover:bg-green-300 text-[#0a0d14] font-black text-sm transition-all disabled:opacity-40 disabled:cursor-not-allowed">
+          {cart.length === 0 ? 'Keranjang Kosong' : `Bayar ${formatRupiah(total)}`}
+        </button>
+      </div>
+    </div>
+  )
+
   return (
-    <div className="flex h-[calc(100vh-57px)] overflow-hidden">
+    <div className="flex h-[calc(100vh-57px)] md:h-[calc(100vh-0px)] overflow-hidden relative">
       {/* PRODUK GRID */}
       <div className="flex-1 flex flex-col overflow-hidden bg-[#0f1117]">
         <div className="p-4 border-b border-[#2a3045]">
@@ -317,7 +329,7 @@ export default function KasirPage() {
               className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-[#181c27] border border-[#2a3045] text-white placeholder-[#3a4560] text-sm outline-none focus:border-green-500/40" />
           </div>
         </div>
-        <div className="flex-1 overflow-y-auto p-4">
+        <div className="flex-1 overflow-y-auto p-4 pb-24 md:pb-4">
           {loadingProducts ? (
             <div className="flex items-center justify-center h-full"><Loader2 className="w-6 h-6 animate-spin text-[#64748b]" /></div>
           ) : filteredProducts.length === 0 ? (
@@ -326,13 +338,12 @@ export default function KasirPage() {
               <p className="font-semibold">Produk tidak ditemukan</p>
             </div>
           ) : (
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-5 gap-3">
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
               {filteredProducts.map(product => {
                 const inCart = cart.find(i => i.product_id === product.id)
-                const stokHabis = product.stok === 0
                 return (
-                  <button key={product.id} onClick={() => !stokHabis && addToCart(product)} disabled={stokHabis}
-                    className={`relative text-left p-3 rounded-xl border transition-all ${stokHabis ? 'bg-[#181c27] border-[#1e2333] opacity-50 cursor-not-allowed' : inCart ? 'bg-[#1a2a1a] border-green-500/40 hover:border-green-400' : 'bg-[#181c27] border-[#2a3045] hover:border-[#3a4560] hover:bg-[#1e2333]'}`}>
+                  <button key={product.id} onClick={() => addToCart(product)}
+                    className={`relative text-left p-3 rounded-xl border transition-all ${inCart ? 'bg-[#1a2a1a] border-green-500/40 hover:border-green-400' : 'bg-[#181c27] border-[#2a3045] hover:border-[#3a4560] hover:bg-[#1e2333]'}`}>
                     {inCart && (
                       <div className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-green-400 text-[#0a0d14] text-xs font-black flex items-center justify-center">{inCart.qty}</div>
                     )}
@@ -348,66 +359,36 @@ export default function KasirPage() {
         </div>
       </div>
 
-      {/* PANEL KASIR */}
-      <div className="w-80 xl:w-96 flex flex-col bg-[#181c27] border-l border-[#2a3045]">
-        <div className="p-4 border-b border-[#2a3045] flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <ShoppingCart className="w-4 h-4 text-green-400" />
-            <span className="font-bold text-sm">Keranjang</span>
-            {cart.length > 0 && <span className="bg-green-400 text-[#0a0d14] text-xs font-black px-1.5 py-0.5 rounded-full">{cart.reduce((s, i) => s + i.qty, 0)}</span>}
-          </div>
-          {cart.length > 0 && (
-            <button onClick={() => setCart([])} className="text-xs text-[#64748b] hover:text-red-400 transition-colors flex items-center gap-1">
-              <Trash2 className="w-3 h-3" /> Kosongkan
-            </button>
-          )}
-        </div>
-        <div className="flex-1 overflow-y-auto p-3 space-y-2">
-          {cart.length === 0 ? (
-            <div className="flex flex-col items-center justify-center h-full text-[#64748b] py-12">
-              <ShoppingCart className="w-10 h-10 mb-3 opacity-30" />
-              <p className="text-sm font-medium">Keranjang kosong</p>
+      {/* DESKTOP CART PANEL */}
+      <div className="hidden md:flex md:w-80 lg:w-96 flex-col">
+        <CartPanel />
+      </div>
+
+      {/* MOBILE BOTTOM BAR */}
+      <div className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-[#181c27] border-t border-[#2a3045] p-3">
+        {showCart ? (
+          <div className="fixed inset-0 z-50 flex flex-col justify-end">
+            <div className="bg-black/60" onClick={() => setShowCart(false)} style={{ flex: 1 }} />
+            <div className="bg-[#181c27] border-t border-[#2a3045] h-[75vh] flex flex-col">
+              <CartPanel />
             </div>
-          ) : cart.map(item => (
-            <div key={item.product_id} className="bg-[#1e2333] rounded-xl p-3 border border-[#2a3045]">
-              <div className="flex items-start justify-between mb-2">
-                <span className="text-sm font-semibold text-[#e2e8f0] leading-tight flex-1 pr-2">{item.nama_produk}</span>
-                <button onClick={() => removeFromCart(item.product_id)} className="text-[#64748b] hover:text-red-400 transition-colors">
-                  <X className="w-3.5 h-3.5" />
-                </button>
-              </div>
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-1">
-                  <button onClick={() => updateQty(item.product_id, -1)} className="w-6 h-6 rounded-lg bg-[#2a3045] hover:bg-[#3a4055] text-white flex items-center justify-center"><Minus className="w-3 h-3" /></button>
-                  <span className="w-8 text-center text-sm font-bold font-mono">{item.qty}</span>
-                  <button onClick={() => updateQty(item.product_id, 1)} disabled={item.qty >= item.stok} className="w-6 h-6 rounded-lg bg-[#2a3045] hover:bg-[#3a4055] text-white flex items-center justify-center disabled:opacity-40"><Plus className="w-3 h-3" /></button>
-                </div>
-                <span className="text-green-400 font-black text-sm font-mono">{formatRupiah(item.subtotal)}</span>
-              </div>
+          </div>
+        ) : (
+          <button onClick={() => setShowCart(true)}
+            className="w-full flex items-center justify-between px-4 py-3 rounded-xl bg-green-400 text-[#0a0d14]">
+            <div className="flex items-center gap-2">
+              <ShoppingCart className="w-4 h-4" />
+              <span className="font-black text-sm">{cart.length === 0 ? 'Keranjang Kosong' : `${totalQty} item`}</span>
             </div>
-          ))}
-        </div>
-        <div className="p-4 border-t border-[#2a3045] space-y-3">
-          <div onClick={() => setShowCustomerPicker(true)} className="w-full flex items-center gap-2 px-3 py-2.5 rounded-xl bg-[#1e2333] border border-[#2a3045] hover:border-[#3a4560] transition-colors cursor-pointer">
-            <User className="w-4 h-4 text-[#64748b] flex-shrink-0" />
-            <span className={`text-sm flex-1 ${selectedCustomer ? 'text-white font-semibold' : 'text-[#64748b]'}`}>{selectedCustomer ? selectedCustomer.nama : 'Pilih pelanggan (opsional)'}</span>
-            {selectedCustomer && <div onClick={e => { e.stopPropagation(); setSelectedCustomer(null) }} className="text-[#64748b] hover:text-red-400 cursor-pointer"><X className="w-3.5 h-3.5" /></div>}
-          </div>
-          <div className="flex items-center justify-between bg-[#1e2333] rounded-xl px-4 py-3 border border-[#2a3045]">
-            <span className="text-[#94a3b8] text-sm font-semibold">Total</span>
-            <span className="text-xl font-black text-white font-mono">{formatRupiah(total)}</span>
-          </div>
-          <button onClick={() => setShowCheckout(true)} disabled={cart.length === 0}
-            className="w-full py-3.5 rounded-xl bg-green-400 hover:bg-green-300 text-[#0a0d14] font-black text-sm transition-all disabled:opacity-40 disabled:cursor-not-allowed">
-            {cart.length === 0 ? 'Keranjang Kosong' : `Bayar ${formatRupiah(total)}`}
+            <span className="font-black text-sm">{formatRupiah(total)}</span>
           </button>
-        </div>
+        )}
       </div>
 
       {/* MODAL CHECKOUT */}
       {showCheckout && (
-        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-[#181c27] border border-[#2a3045] rounded-2xl w-full max-w-md shadow-2xl">
+        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-end md:items-center justify-center z-50 p-0 md:p-4">
+          <div className="bg-[#181c27] border border-[#2a3045] rounded-t-2xl md:rounded-2xl w-full md:max-w-md shadow-2xl max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between p-5 border-b border-[#2a3045]">
               <h3 className="font-black text-lg">Proses Pembayaran</h3>
               <button onClick={() => setShowCheckout(false)} className="text-[#64748b] hover:text-white"><X className="w-5 h-5" /></button>
@@ -416,7 +397,7 @@ export default function KasirPage() {
               <div className="bg-[#1e2333] rounded-xl p-4 border border-[#2a3045]">
                 <div className="text-xs text-[#64748b] mb-1 font-semibold uppercase tracking-wide">Total Belanja</div>
                 <div className="text-3xl font-black text-green-400 font-mono">{formatRupiah(total)}</div>
-                <div className="text-xs text-[#64748b] mt-1">{cart.length} item • {cart.reduce((s, i) => s + i.qty, 0)} qty</div>
+                <div className="text-xs text-[#64748b] mt-1">{cart.length} item • {totalQty} qty</div>
               </div>
               <div>
                 <div className="text-xs font-semibold text-[#94a3b8] uppercase tracking-wide mb-2">Metode Pembayaran</div>
@@ -509,8 +490,8 @@ export default function KasirPage() {
 
       {/* MODAL CUSTOMER PICKER */}
       {showCustomerPicker && (
-        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-[#181c27] border border-[#2a3045] rounded-2xl w-full max-w-sm shadow-2xl">
+        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-end md:items-center justify-center z-50">
+          <div className="bg-[#181c27] border border-[#2a3045] rounded-t-2xl md:rounded-2xl w-full md:max-w-sm shadow-2xl">
             <div className="flex items-center justify-between p-4 border-b border-[#2a3045]">
               <h3 className="font-bold text-sm">Pilih Pelanggan</h3>
               <button onClick={() => setShowCustomerPicker(false)} className="text-[#64748b] hover:text-white"><X className="w-4 h-4" /></button>
