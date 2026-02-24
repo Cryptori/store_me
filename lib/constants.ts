@@ -1,8 +1,8 @@
 // Freemium limits
 export const FREE_TIER = {
   MAX_PRODUK: 50,
-  MAX_PELANGGAN: 10,
-  MAX_TRANSAKSI_PER_HARI: 999, // unlimited
+  MAX_PELANGGAN: 50,        
+  MAX_TRANSAKSI_PER_HARI: 999, 
   LAPORAN_BULANAN: false,
   EXPORT_PDF: false,
   MULTI_USER: false,

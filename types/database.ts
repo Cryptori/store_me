@@ -27,9 +27,45 @@ export type Database = {
         Update: { id?: string; store_id?: string; customer_id?: string; transaction_id?: string | null; jumlah?: number; sisa?: number; status?: string; catatan?: string | null; jatuh_tempo?: string | null; created_at?: string; updated_at?: string }
       }
       payments: {
-        Row: { id: string; store_id: string; midtrans_order_id: string; amount: number; status: string; created_at: string }
-        Insert: { id?: string; store_id: string; midtrans_order_id: string; amount: number; status?: string; created_at?: string }
-        Update: { id?: string; store_id?: string; midtrans_order_id?: string; amount?: number; status?: string; created_at?: string }
+        Row: {
+          id: string
+          store_id: string
+          midtrans_order_id: string
+          midtrans_transaction_id: string | null
+          amount: number
+          durasi_bulan: number
+          payment_type: string | null
+          status: string
+          notes: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          store_id: string
+          midtrans_order_id: string
+          midtrans_transaction_id?: string | null
+          amount: number
+          durasi_bulan?: number
+          payment_type?: string | null
+          status?: string
+          notes?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          store_id?: string
+          midtrans_order_id?: string
+          midtrans_transaction_id?: string | null
+          amount?: number
+          durasi_bulan?: number
+          payment_type?: string | null
+          status?: string
+          notes?: string | null
+          created_at?: string
+          updated_at?: string
+        }
       }
       products: {
         Row: { id: string; store_id: string; category_id: string | null; nama: string; sku: string | null; harga_beli: number; harga_jual: number; stok: number; stok_minimum: number; satuan: string; gambar_url: string | null; is_active: boolean; created_at: string; updated_at: string }
