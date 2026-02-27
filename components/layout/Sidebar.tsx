@@ -2,22 +2,32 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
+import { useEffect, useState } from 'react'
 import {
   LayoutDashboard, ShoppingCart, Package, TrendingDown,
-  Users, CreditCard, BarChart2, Settings, Zap, LogOut, Store,
+  Users, CreditCard, BarChart2, Settings, Zap, LogOut,
+  Store, X, ArrowRight,
 } from 'lucide-react'
 import { FREE_TIER } from '@/lib/constants'
 import type { Store as StoreType } from '@/types/database'
 
 const NAV_ITEMS = [
-  { href: '/dashboard',   label: 'Dashboard',  icon: LayoutDashboard },
-  { href: '/kasir',       label: 'Kasir',       icon: ShoppingCart },
-  { href: '/produk',      label: 'Produk',      icon: Package },
-  { href: '/stok',        label: 'Stok',        icon: TrendingDown,  badge: 'stok' },
-  { href: '/pelanggan',   label: 'Pelanggan',   icon: Users },
-  { href: '/hutang',      label: 'Hutang',      icon: CreditCard,    badge: 'hutang' },
-  { href: '/laporan',     label: 'Laporan',     icon: BarChart2 },
-  { href: '/pengaturan',  label: 'Pengaturan',  icon: Settings },
+  { href: '/dashboard',  label: 'Dashboard',  icon: LayoutDashboard },
+  { href: '/kasir',      label: 'Kasir',       icon: ShoppingCart },
+  { href: '/produk',     label: 'Produk',      icon: Package },
+  { href: '/stok',       label: 'Stok',        icon: TrendingDown,  badge: 'stok' },
+  { href: '/pelanggan',  label: 'Pelanggan',   icon: Users },
+  { href: '/hutang',     label: 'Hutang',      icon: CreditCard,    badge: 'hutang' },
+  { href: '/laporan',    label: 'Laporan',     icon: BarChart2 },
+  { href: '/pengaturan', label: 'Pengaturan',  icon: Settings },
+]
+
+// Pesan yang bergantian muncul di toast
+const UPGRADE_MESSAGES = [
+  { emoji: '📊', text: 'Laporan bulanan tersedia di PRO' },
+  { emoji: '📦', text: 'Produk unlimited mulai Rp 49k/bln' },
+  { emoji: '📄', text: 'Export PDF laporan dengan PRO' },
+  { emoji: '⚡', text: 'Upgrade sekarang, hemat 2 bulan!' },
 ]
 
 type Props = {
@@ -31,6 +41,40 @@ type Props = {
 
 export default function Sidebar({ store, stokAlert, hutangAlert, produkCount, onClose, onLogout }: Props) {
   const pathname = usePathname()
+  const [toastVisible, setToastVisible] = useState(false)
+  const [toastDismissed, setToastDismissed] = useState(false)
+  const [msgIndex, setMsgIndex] = useState(0)
+
+  const isFree = store && !store.is_pro
+
+  useEffect(() => {
+    if (!isFree || toastDismissed) return
+
+    // Muncul pertama kali setelah 3 detik
+    const showTimer = setTimeout(() => setToastVisible(true), 3000)
+    return () => clearTimeout(showTimer)
+  }, [isFree, toastDismissed])
+
+  useEffect(() => {
+    if (!isFree || toastDismissed || !toastVisible) return
+
+    // Ganti pesan setiap 4 detik, hilang setelah 3x siklus lalu muncul lagi
+    const cycleTimer = setInterval(() => {
+      setMsgIndex(i => {
+        const next = (i + 1) % UPGRADE_MESSAGES.length
+        // Kalau sudah 1 putaran penuh, sembunyikan dulu 10 detik
+        if (next === 0) {
+          setToastVisible(false)
+          setTimeout(() => setToastVisible(true), 10_000)
+        }
+        return next
+      })
+    }, 4000)
+
+    return () => clearInterval(cycleTimer)
+  }, [isFree, toastDismissed, toastVisible])
+
+  const msg = UPGRADE_MESSAGES[msgIndex]
 
   return (
     <aside className="flex flex-col h-full bg-[#0f1117] border-r border-[#2a3045]">
@@ -91,20 +135,55 @@ export default function Sidebar({ store, stokAlert, hutangAlert, produkCount, on
         })}
       </nav>
 
-      {/* Upgrade banner */}
-      {store && !store.is_pro && (
-        <div className="mx-3 mb-3">
-          <div className="bg-gradient-to-br from-[#1a2a1a] to-[#142020] border border-green-500/20 rounded-xl p-4">
-            <div className="flex items-center gap-2 mb-1">
-              <Zap className="w-3.5 h-3.5 text-green-400" />
-              <span className="text-xs font-bold text-green-400">Upgrade ke PRO</span>
+      {/* Upgrade toast — muncul/hilang otomatis untuk FREE user */}
+      {isFree && !toastDismissed && (
+        <div className={`mx-3 mb-2 transition-all duration-500 ease-in-out ${
+          toastVisible
+            ? 'opacity-100 translate-y-0'
+            : 'opacity-0 translate-y-2 pointer-events-none'
+        }`}>
+          <div className="relative bg-gradient-to-br from-[#1a2a1a] to-[#0f1f1a] border border-green-500/30 rounded-xl p-3 shadow-lg shadow-green-900/10">
+            {/* Dismiss button */}
+            <button
+              onClick={() => { setToastVisible(false); setToastDismissed(true) }}
+              className="absolute top-2 right-2 text-[#3a4560] hover:text-[#64748b] transition-colors"
+            >
+              <X className="w-3 h-3" />
+            </button>
+
+            <div className="flex items-start gap-2.5 pr-4">
+              <div className="w-7 h-7 rounded-lg bg-green-400/10 border border-green-400/20 flex items-center justify-center flex-shrink-0 mt-0.5">
+                <Zap className="w-3.5 h-3.5 text-green-400" />
+              </div>
+              <div className="min-w-0">
+                <div className="text-[11px] font-black text-green-400 mb-0.5">Upgrade ke PRO</div>
+                {/* Pesan berganti dengan animasi */}
+                <div className="text-[10px] text-[#94a3b8] leading-relaxed">
+                  {msg.emoji} {msg.text}
+                </div>
+              </div>
             </div>
-            <p className="text-[10px] text-[#64748b] mb-3">Unlimited produk, laporan bulanan & export PDF</p>
-            <Link href="/upgrade" onClick={onClose}
-              className="block w-full py-2 text-center bg-green-400 text-[#0a0d14] rounded-lg text-xs font-black hover:bg-green-300 transition-colors">
-              Mulai dari Rp 49k/bln
+
+            <Link
+              href="/upgrade"
+              onClick={onClose}
+              className="mt-2.5 flex items-center justify-center gap-1.5 w-full py-1.5 bg-green-400 hover:bg-green-300 text-[#0a0d14] rounded-lg text-[11px] font-black transition-colors"
+            >
+              Mulai dari Rp 49k/bln <ArrowRight className="w-3 h-3" />
             </Link>
           </div>
+        </div>
+      )}
+
+      {/* Upgrade banner static (tetap ada di bawah toast, lebih minimalis) */}
+      {isFree && toastDismissed && (
+        <div className="mx-3 mb-3">
+          <Link href="/upgrade" onClick={onClose}
+            className="flex items-center gap-2 px-3 py-2 rounded-xl border border-green-500/20 text-green-400 hover:bg-[#1a2a1a] transition-colors">
+            <Zap className="w-3.5 h-3.5 flex-shrink-0" />
+            <span className="text-xs font-bold">Upgrade ke PRO</span>
+            <ArrowRight className="w-3 h-3 ml-auto" />
+          </Link>
         </div>
       )}
 
