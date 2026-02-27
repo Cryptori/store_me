@@ -8,23 +8,31 @@ import ProdukForm from '@/components/produk/ProductForm'
 import type { Product } from '@/types/database'
 
 export default function EditProdukPage() {
-    const { id } = useParams()
-    const [product, setProduct] = useState<Product | null>(null)
-    const supabase = createClient()
+  // Fix: useParams() return string | string[] | undefined di Next.js 15
+  const params = useParams()
+  const id = Array.isArray(params.id) ? params.id[0] : params.id
 
-    useEffect(() => {
-        async function fetch() {
-            const { data } = await supabase.from('products').select('*').eq('id', id).single()
-            setProduct(data)
-        }
-        fetch()
-    }, [id])
+  const [product, setProduct] = useState<Product | null>(null)
 
-    if (!product) return (
-        <div className="flex items-center justify-center h-full">
-            <div className="animate-spin w-6 h-6 border-2 border-green-400 border-t-transparent rounded-full" />
-        </div>
-    )
+  useEffect(() => {
+    if (!id) return
+    async function fetchProduct() {
+      const supabase = createClient()
+      const { data } = await supabase
+        .from('products')
+        .select('*')
+        .eq('id', id as string)
+        .single()
+      setProduct(data)
+    }
+    fetchProduct()
+  }, [id])
 
-    return <ProdukForm product={product} />
+  if (!product) return (
+    <div className="flex items-center justify-center h-full">
+      <div className="animate-spin w-6 h-6 border-2 border-green-400 border-t-transparent rounded-full" />
+    </div>
+  )
+
+  return <ProdukForm product={product} />
 }

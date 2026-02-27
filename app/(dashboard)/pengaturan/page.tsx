@@ -5,6 +5,7 @@ import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useStore } from '@/hooks/useStore'
 import type { TokoInput } from '@/lib/validations'
+import type { Store } from '@/types/database'
 import FormToko from '@/components/pengaturan/FormToko'
 import StatusLangganan from '@/components/pengaturan/StatusLangganan'
 
@@ -31,9 +32,16 @@ export default function PengaturanPage() {
     setError('')
 
     const supabase = createClient()
-    const { data: updated, error: err } = await supabase
+
+    // Fix: typed client terlalu strict untuk .update(), cast ke any
+    const db = supabase as any
+    const { data: updated, error: err } = await db
       .from('stores')
-      .update({ ...data, updated_at: new Date().toISOString() })
+      .update({
+        nama: data.nama,
+        alamat: data.alamat || null,
+        telepon: data.telepon || null,
+      })
       .eq('id', store.id)
       .select()
       .single()
