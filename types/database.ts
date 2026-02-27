@@ -17,9 +17,9 @@ export type Database = {
         Update: { id?: string; store_id?: string; nama?: string; telepon?: string | null; alamat?: string | null; total_hutang?: number; created_at?: string; updated_at?: string }
       }
       debt_payments: {
-        Row: { id: string; debt_id: string; jumlah_bayar: number; created_at: string }
-        Insert: { id?: string; debt_id: string; jumlah_bayar: number; created_at?: string }
-        Update: { id?: string; debt_id?: string; jumlah_bayar?: number; created_at?: string }
+        Row: { id: string; debt_id: string; jumlah_bayar: number; catatan: string | null; created_at: string }
+        Insert: { id?: string; debt_id: string; jumlah_bayar: number; catatan?: string | null; created_at?: string }
+        Update: { id?: string; debt_id?: string; jumlah_bayar?: number; catatan?: string | null; created_at?: string }
       }
       debts: {
         Row: { id: string; store_id: string; customer_id: string; transaction_id: string | null; jumlah: number; sisa: number; status: string; catatan: string | null; jatuh_tempo: string | null; created_at: string; updated_at: string }
@@ -32,6 +32,7 @@ export type Database = {
           store_id: string
           midtrans_order_id: string
           midtrans_transaction_id: string | null
+          midtrans_token: string | null
           amount: number
           durasi_bulan: number
           payment_type: string | null
@@ -45,6 +46,7 @@ export type Database = {
           store_id: string
           midtrans_order_id: string
           midtrans_transaction_id?: string | null
+          midtrans_token?: string | null
           amount: number
           durasi_bulan?: number
           payment_type?: string | null
@@ -58,6 +60,7 @@ export type Database = {
           store_id?: string
           midtrans_order_id?: string
           midtrans_transaction_id?: string | null
+          midtrans_token?: string | null
           amount?: number
           durasi_bulan?: number
           payment_type?: string | null
@@ -101,7 +104,7 @@ export type Database = {
 }
 
 // ============================================================
-// NAMED EXPORTS — inilah yang dipakai di seluruh komponen app
+// NAMED EXPORTS
 // ============================================================
 
 export type Store = Database['public']['Tables']['stores']['Row']
