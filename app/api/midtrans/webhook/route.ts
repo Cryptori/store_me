@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@/lib/supabase/server'
+import { createClient as createServerClient } from '@/lib/supabase/server'
+import { createClient as createSupabaseClient } from '@supabase/supabase-js'
+import type { Database } from '@/types/database'
 
 // @ts-ignore
 const midtransClient = require('midtrans-client')
@@ -10,16 +12,23 @@ const coreApi = new midtransClient.CoreApi({
   clientKey: process.env.NEXT_PUBLIC_MIDTRANS_CLIENT_KEY,
 })
 
+// Fix: Webhook harus pakai service role agar bisa update payments
+// (RLS policy tidak izinkan user biasa update status payments)
+function createServiceClient() {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL!
+  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!
+  if (!serviceKey) throw new Error('SUPABASE_SERVICE_ROLE_KEY not set')
+  return createSupabaseClient<Database>(url, serviceKey)
+}
+
 export async function POST(request: NextRequest) {
   const startTime = Date.now()
 
   try {
     const body = await request.json()
-    const { order_id, transaction_status, fraud_status, gross_amount } = body
+    const { order_id, transaction_status, fraud_status } = body
 
     // ─── 1. VERIFIKASI SIGNATURE MIDTRANS ───────────────────────────
-    // coreApi.transaction.notification() otomatis verifikasi signature
-    // Kalau signature tidak valid, akan throw error
     let statusResponse: any
     try {
       statusResponse = await coreApi.transaction.notification(body)
@@ -28,22 +37,23 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Invalid signature' }, { status: 401 })
     }
 
-    const supabase = await createClient()
-    const db = supabase as any
+    // Fix: Pakai service role untuk bypass RLS
+    const db = createServiceClient() as any
 
     // ─── 2. CARI DATA PAYMENT ────────────────────────────────────────
     const { data: payment, error: paymentError } = await db
       .from('payments')
-      .select('*, stores(id, nama)')
+      .select('id, store_id, amount, status, durasi_bulan, midtrans_order_id')
       .eq('midtrans_order_id', order_id)
       .single()
 
     if (paymentError || !payment) {
       console.error('[Webhook] Payment not found:', order_id)
-      return NextResponse.json({ error: 'Payment not found' }, { status: 404 })
+      // Return 200 agar Midtrans tidak retry terus
+      return NextResponse.json({ error: 'Payment not found' }, { status: 200 })
     }
 
-    // ─── 3. CEGAH DOUBLE PROCESSING ─────────────────────────────────
+    // ─── 3. CEGAH DOUBLE PROCESSING (idempotency) ───────────────────
     if (payment.status === 'success') {
       console.log('[Webhook] Already processed:', order_id)
       return NextResponse.json({ status: 'already processed' })
@@ -51,63 +61,57 @@ export async function POST(request: NextRequest) {
 
     // ─── 4. VERIFIKASI AMOUNT ────────────────────────────────────────
     const expectedAmount = payment.amount
-    const receivedAmount = parseFloat(statusResponse.gross_amount ?? gross_amount ?? '0')
+    const receivedAmount = parseFloat(statusResponse.gross_amount ?? '0')
 
-    if (receivedAmount !== expectedAmount) {
-      console.error('[Webhook] Amount mismatch:', {
-        order_id,
-        expected: expectedAmount,
-        received: receivedAmount,
-      })
-      // Log ke database sebagai suspicious
+    if (Math.abs(receivedAmount - expectedAmount) > 1) {
+      // Toleransi 1 rupiah untuk floating point
+      console.error('[Webhook] Amount mismatch:', { order_id, expectedAmount, receivedAmount })
       await db.from('payments').update({
         status: 'suspicious',
         notes: `Amount mismatch: expected ${expectedAmount}, received ${receivedAmount}`,
         updated_at: new Date().toISOString(),
       }).eq('midtrans_order_id', order_id)
-
-      return NextResponse.json({ error: 'Amount mismatch' }, { status: 400 })
+      return NextResponse.json({ error: 'Amount mismatch' }, { status: 200 })
     }
 
-    // ─── 5. PROSES STATUS TRANSAKSI ──────────────────────────────────
+    // ─── 5. TENTUKAN STATUS BARU ─────────────────────────────────────
     let newStatus = 'pending'
     let shouldActivatePro = false
 
-    if (transaction_status === 'capture' || transaction_status === 'settlement') {
-      if (fraud_status === 'accept' || !fraud_status) {
+    const txStatus = statusResponse.transaction_status ?? transaction_status
+    const txFraud  = statusResponse.fraud_status ?? fraud_status
+
+    if (txStatus === 'capture' || txStatus === 'settlement') {
+      if (txFraud === 'accept' || !txFraud) {
         newStatus = 'success'
         shouldActivatePro = true
-      } else if (fraud_status === 'challenge') {
-        // Butuh review manual
+      } else if (txFraud === 'challenge') {
         newStatus = 'challenge'
         console.warn('[Webhook] Fraud challenge:', order_id)
       }
-    } else if (['cancel', 'deny', 'expire'].includes(transaction_status)) {
+    } else if (['cancel', 'deny', 'expire'].includes(txStatus)) {
       newStatus = 'failed'
-    } else if (transaction_status === 'refund') {
+    } else if (txStatus === 'refund') {
       newStatus = 'refunded'
-    } else if (transaction_status === 'pending') {
-      newStatus = 'pending'
     }
 
-    // ─── 6. AKTIFKAN PRO (hanya kalau success) ───────────────────────
+    // ─── 6. AKTIFKAN PRO ─────────────────────────────────────────────
     if (shouldActivatePro) {
       try {
         await db.rpc('activate_pro_subscription', {
           p_store_id: payment.store_id,
           p_durasi_bulan: payment.durasi_bulan ?? 1,
         })
-        console.log('[Webhook] PRO activated for store:', payment.store_id)
+        console.log('[Webhook] PRO activated:', payment.store_id)
       } catch (rpcError) {
-        console.error('[Webhook] Failed to activate PRO:', rpcError)
-        // Update status payment tapi flag error aktivasi
+        console.error('[Webhook] PRO activation failed:', rpcError)
         await db.from('payments').update({
           status: 'success_pending_activation',
-          notes: 'Payment success but PRO activation failed, needs manual review',
+          notes: 'Payment success but PRO activation failed — needs manual review',
           updated_at: new Date().toISOString(),
         }).eq('midtrans_order_id', order_id)
-
-        return NextResponse.json({ error: 'Activation failed' }, { status: 500 })
+        // Return 200 agar Midtrans tidak retry
+        return NextResponse.json({ error: 'Activation failed, flagged for review' }, { status: 200 })
       }
     }
 
@@ -120,12 +124,13 @@ export async function POST(request: NextRequest) {
     }).eq('midtrans_order_id', order_id)
 
     const duration = Date.now() - startTime
-    console.log(`[Webhook] Processed ${order_id} → ${newStatus} (${duration}ms)`)
+    console.log(`[Webhook] Done: ${order_id} → ${newStatus} (${duration}ms)`)
 
     return NextResponse.json({ status: 'ok', order_id, newStatus })
 
   } catch (error: any) {
     console.error('[Webhook] Unexpected error:', error)
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+    // Return 200 agar Midtrans tidak retry (sudah di-log)
+    return NextResponse.json({ error: 'Internal server error' }, { status: 200 })
   }
 }
