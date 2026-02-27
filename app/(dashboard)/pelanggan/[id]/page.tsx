@@ -11,7 +11,10 @@ import HutangAktif from '@/components/pelanggan/detail/HutangAktif'
 import HutangLunas from '@/components/pelanggan/detail/HutangLunas'
 
 export default function PelangganDetailPage() {
-  const { id } = useParams()
+  // Fix: ParamValue bisa string | string[] | undefined di Next.js 15
+  const params = useParams()
+  const id = (Array.isArray(params.id) ? params.id[0] : params.id) as string
+
   const router = useRouter()
   const [customer, setCustomer] = useState<Customer | null>(null)
   const [debts, setDebts] = useState<Debt[]>([])
@@ -20,16 +23,17 @@ export default function PelangganDetailPage() {
   const [bayarAmount, setBayarAmount] = useState('')
   const [saving, setSaving] = useState(false)
 
-  useEffect(() => { fetchData() }, [id])
+  useEffect(() => { if (id) fetchData() }, [id])
 
   async function fetchData() {
     const supabase = createClient()
     const [custRes, debtRes] = await Promise.all([
       supabase.from('customers').select('*').eq('id', id).single(),
-      supabase.from('debts').select('*').eq('customer_id', id).order('created_at', { ascending: false }),
+      supabase.from('debts').select('*').eq('customer_id', id)
+        .order('created_at', { ascending: false }),
     ])
     setCustomer(custRes.data)
-    setDebts(debtRes.data ?? [])
+    setDebts((debtRes.data ?? []) as Debt[])
     setLoading(false)
   }
 
@@ -44,28 +48,33 @@ export default function PelangganDetailPage() {
     setSaving(true)
 
     const supabase = createClient()
+    const db = supabase as any
     const debt = debts.find(d => d.id === debtId)!
     const sisaBaru = Math.max(0, debt.sisa - jumlah)
     const statusBaru = sisaBaru === 0 ? 'lunas' : 'belum_lunas'
 
     await Promise.all([
-      supabase.from('debt_payments').insert({ debt_id: debtId, jumlah_bayar: jumlah }),
-      (supabase as any).from('debts').update({
-        sisa: sisaBaru, status: statusBaru, updated_at: new Date().toISOString(),
+      // Fix: debt_payments insert pakai db (as any) karena typed client strict
+      db.from('debt_payments').insert({ debt_id: debtId, jumlah_bayar: jumlah }),
+      db.from('debts').update({
+        sisa: sisaBaru,
+        status: statusBaru,
+        updated_at: new Date().toISOString(),
       }).eq('id', debtId),
     ])
 
-    // Hitung ulang total_hutang dari semua debt belum lunas
+    // Hitung ulang total_hutang
     const { data: allDebts } = await supabase
-      .from('debts').select('sisa, id')
-      .eq('customer_id', id as string)
+      .from('debts')
+      .select('id, sisa')
+      .eq('customer_id', id)
       .eq('status', 'belum_lunas')
 
-    const totalSisa = (allDebts ?? [])
-      .filter((d: any) => !(statusBaru === 'lunas' && d.id === debtId))
-      .reduce((s: number, d: any) => s + d.sisa, 0)
+    const totalSisa = ((allDebts ?? []) as { id: string; sisa: number }[])
+      .filter(d => !(statusBaru === 'lunas' && d.id === debtId))
+      .reduce((s, d) => s + d.sisa, 0)
 
-    await (supabase as any).from('customers').update({
+    await db.from('customers').update({
       total_hutang: Math.max(0, totalSisa),
       updated_at: new Date().toISOString(),
     }).eq('id', id)
@@ -89,7 +98,8 @@ export default function PelangganDetailPage() {
   return (
     <div className="p-4 md:p-6 max-w-3xl">
       <div className="flex items-center gap-3 mb-6">
-        <button onClick={() => router.back()} className="p-2 rounded-xl hover:bg-[#181c27] text-[#64748b] hover:text-white transition-colors">
+        <button onClick={() => router.back()}
+          className="p-2 rounded-xl hover:bg-[#181c27] text-[#64748b] hover:text-white transition-colors">
           <ArrowLeft className="w-4 h-4" />
         </button>
         <div className="flex items-center gap-3">

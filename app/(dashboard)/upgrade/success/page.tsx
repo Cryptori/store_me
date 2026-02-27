@@ -21,29 +21,29 @@ function SuccessContent() {
   }, [orderId])
 
   async function verifyPayment() {
-    // Cek status dari database, bukan hanya setTimeout
     const supabase = createClient()
+    const db = supabase as any
 
-    // Retry sampai 10x dengan interval 2 detik (total max 20 detik)
-    // Webhook Midtrans butuh beberapa detik untuk update database
     for (let i = 0; i < 10; i++) {
       setAttempts(i + 1)
 
-      const { data: payment } = await (supabase as any)
+      // Fix: kolom sudah direname dari order_id ke midtrans_order_id
+      // Fix: cast ke any agar tidak 'never'
+      const { data: payment } = await db
         .from('payments')
         .select('status, store_id')
-        .eq('order_id', orderId)
+        .eq('midtrans_order_id', orderId)
         .single()
 
       if (payment?.status === 'success') {
-        // Verifikasi store benar-benar sudah PRO
-        const { data: store } = await supabase
+        // Fix: stores query pakai typed client, cast hasil
+        const { data: store } = await db
           .from('stores')
           .select('is_pro')
           .eq('id', payment.store_id)
           .single()
 
-        if (store?.is_pro) {
+        if ((store as { is_pro: boolean } | null)?.is_pro) {
           setStatus('success')
           return
         }
@@ -54,11 +54,9 @@ function SuccessContent() {
         return
       }
 
-      // Belum ada update, tunggu 2 detik lalu retry
       await new Promise(r => setTimeout(r, 2000))
     }
 
-    // Setelah 10x retry masih belum success, anggap pending
     setStatus('pending')
   }
 
@@ -81,8 +79,7 @@ function SuccessContent() {
       <h2 className="text-xl font-black text-white mb-2">Pembayaran Berhasil!</h2>
       <p className="text-[#64748b] text-sm mb-1">Akun kamu sudah diupgrade ke PRO.</p>
       {orderId && <p className="text-[#64748b] text-xs mb-6 font-mono">{orderId}</p>}
-      <button
-        onClick={() => router.push('/dashboard')}
+      <button onClick={() => router.push('/dashboard')}
         className="w-full py-3 bg-green-400 hover:bg-green-300 text-[#0a0d14] rounded-xl font-black text-sm transition-colors">
         Ke Dashboard →
       </button>
@@ -98,8 +95,7 @@ function SuccessContent() {
       <p className="text-[#64748b] text-sm mb-1">Pembayaran sedang diverifikasi oleh bank.</p>
       <p className="text-[#64748b] text-xs mb-6">Akun akan diupgrade otomatis setelah konfirmasi. Biasanya 1-5 menit.</p>
       {orderId && <p className="text-[#3a4560] text-xs mb-4 font-mono">{orderId}</p>}
-      <button
-        onClick={() => router.push('/dashboard')}
+      <button onClick={() => router.push('/dashboard')}
         className="w-full py-3 bg-[#1e2333] border border-[#2a3045] hover:bg-[#2a3045] text-white rounded-xl font-black text-sm transition-colors">
         Kembali ke Dashboard
       </button>
@@ -112,15 +108,15 @@ function SuccessContent() {
         <XCircle className="w-8 h-8 text-red-400" />
       </div>
       <h2 className="text-xl font-black text-white mb-2">Verifikasi Gagal</h2>
-      <p className="text-[#64748b] text-sm mb-6">Tidak dapat memverifikasi pembayaran. Jika sudah bayar, hubungi support.</p>
+      <p className="text-[#64748b] text-sm mb-6">
+        Tidak dapat memverifikasi pembayaran. Jika sudah bayar, hubungi support.
+      </p>
       <div className="flex gap-3">
-        <button
-          onClick={() => router.push('/upgrade')}
+        <button onClick={() => router.push('/upgrade')}
           className="flex-1 py-3 bg-[#1e2333] border border-[#2a3045] text-white rounded-xl font-black text-sm transition-colors hover:bg-[#2a3045]">
           Coba Lagi
         </button>
-        <button
-          onClick={() => router.push('/dashboard')}
+        <button onClick={() => router.push('/dashboard')}
           className="flex-1 py-3 bg-green-400 hover:bg-green-300 text-[#0a0d14] rounded-xl font-black text-sm transition-colors">
           Dashboard
         </button>

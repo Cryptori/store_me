@@ -36,8 +36,9 @@ export default function PelangganPage() {
 
   async function fetchCustomers() {
     const supabase = createClient()
-    const { data } = await supabase.from('customers').select('*').eq('store_id', store!.id).order('nama')
-    setCustomers(data ?? [])
+    const { data } = await supabase.from('customers').select('*')
+      .eq('store_id', store!.id).order('nama')
+    setCustomers((data ?? []) as Customer[])
     setLoading(false)
   }
 
@@ -45,19 +46,24 @@ export default function PelangganPage() {
     if (!form.nama.trim()) return
     setSaving(true)
     setError('')
+
     const supabase = createClient()
-    const { error: err } = await supabase.from('customers').insert({
+    // Fix: typed client strict untuk insert, cast ke any
+    const db = supabase as any
+    const { error: err } = await db.from('customers').insert({
       nama: form.nama.trim(),
       telepon: form.telepon.trim() || null,
       alamat: form.alamat.trim() || null,
       store_id: store!.id,
       total_hutang: 0,
     })
+
     if (err) {
       setError('Gagal menyimpan, coba lagi')
       setSaving(false)
       return
     }
+
     setForm({ nama: '', telepon: '', alamat: '' })
     setShowForm(false)
     await fetchCustomers()
@@ -94,7 +100,8 @@ export default function PelangganPage() {
 
       <div className="relative mb-4">
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#64748b]" />
-        <input type="text" placeholder="Cari nama atau nomor HP..." value={search} onChange={e => setSearch(e.target.value)}
+        <input type="text" placeholder="Cari nama atau nomor HP..."
+          value={search} onChange={e => setSearch(e.target.value)}
           className="w-full pl-10 pr-4 py-2.5 bg-[#181c27] border border-[#2a3045] rounded-xl text-white placeholder-[#3a4560] text-sm outline-none focus:border-green-500/40" />
       </div>
 

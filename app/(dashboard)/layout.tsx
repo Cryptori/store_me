@@ -23,10 +23,10 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
   async function fetchAlerts() {
     const supabase = createClient()
+    const db = supabase as any
 
     const [stokRes, hutangRes, produkRes] = await Promise.all([
-      // Fix: pakai filter stok <= stok_minimum bukan hardcode 5
-      supabase.from('products')
+      db.from('products')
         .select('id, stok, stok_minimum')
         .eq('store_id', store!.id)
         .eq('is_active', true),
@@ -42,8 +42,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         .eq('is_active', true),
     ])
 
-    // Hitung stok menipis client-side karena Supabase tidak support filter antar kolom
-    const menipis = (stokRes.data ?? []).filter(p => p.stok <= p.stok_minimum).length
+    const stokData = (stokRes.data ?? []) as { id: string; stok: number; stok_minimum: number }[]
+    const menipis = stokData.filter(p => p.stok <= p.stok_minimum).length
     setStokAlert(menipis)
     setHutangAlert(hutangRes.count ?? 0)
     setProdukCount(produkRes.count ?? 0)
@@ -57,7 +57,6 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
   return (
     <div className="flex h-screen overflow-hidden bg-[#0a0d14]">
-      {/* Desktop sidebar */}
       <div className="hidden md:flex md:w-56 lg:w-60 flex-col flex-shrink-0">
         <Sidebar
           store={store}
@@ -68,7 +67,6 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         />
       </div>
 
-      {/* Mobile sidebar overlay */}
       {mobileOpen && (
         <div className="fixed inset-0 z-50 flex md:hidden">
           <div className="w-60 flex flex-col">
@@ -85,9 +83,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         </div>
       )}
 
-      {/* Main content */}
       <div className="flex-1 flex flex-col overflow-hidden">
-        {/* Mobile topbar */}
         <div className="md:hidden flex items-center justify-between px-4 py-3 bg-[#0f1117] border-b border-[#2a3045]">
           <button onClick={() => setMobileOpen(true)} className="text-[#64748b] hover:text-white">
             <Menu className="w-5 h-5" />
@@ -95,7 +91,6 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           <span className="font-black text-base">Toko<span className="text-green-400">Ku</span></span>
           <div className="w-5" />
         </div>
-
         <main className="flex-1 overflow-auto">
           {children}
         </main>
