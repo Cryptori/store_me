@@ -8,16 +8,19 @@ import { createClient } from '@/lib/supabase/client'
 import { useStore } from '@/hooks/useStore'
 import { useFreemium } from '@/hooks/useFreemium'
 import { formatRupiah } from '@/lib/utils'
+import { FREE_TIER } from '@/lib/constants'
 import type { Product } from '@/types/database'
+import UpgradeModal from '@/components/shared/UpgradeModal'
 
 export default function ProdukPage() {
   const { store } = useStore()
-  const { canAddProduk } = useFreemium()
+  const { canAddProduk, isPro } = useFreemium()
   const [products, setProducts] = useState<Product[]>([])
   const [filtered, setFiltered] = useState<Product[]>([])
   const [search, setSearch] = useState('')
   const [loading, setLoading] = useState(true)
   const [deleting, setDeleting] = useState<string | null>(null)
+  const [showUpgradeModal, setShowUpgradeModal] = useState(false)
 
   useEffect(() => { if (store) fetchProducts() }, [store])
 
@@ -30,12 +33,8 @@ export default function ProdukPage() {
 
   async function fetchProducts() {
     const supabase = createClient()
-    const { data } = await supabase
-      .from('products')
-      .select('*')
-      .eq('store_id', store!.id)
-      .eq('is_active', true)
-      .order('nama')
+    const { data } = await supabase.from('products').select('*')
+      .eq('store_id', store!.id).eq('is_active', true).order('nama')
     setProducts((data ?? []) as Product[])
     setFiltered((data ?? []) as Product[])
     setLoading(false)
@@ -51,6 +50,15 @@ export default function ProdukPage() {
   }
 
   const canAdd = canAddProduk(products.length)
+  const isNearLimit = !isPro && products.length >= FREE_TIER.MAX_PRODUK - 5
+
+  function handleTambahClick() {
+    if (!canAdd) {
+      setShowUpgradeModal(true)
+      return
+    }
+    window.location.href = '/produk/tambah'
+  }
 
   return (
     <div className="p-6 max-w-6xl">
@@ -59,20 +67,34 @@ export default function ProdukPage() {
           <h1 className="text-2xl font-black text-white">Produk</h1>
           <p className="text-[#64748b] text-sm mt-0.5">{products.length} produk terdaftar</p>
         </div>
-        {canAdd ? (
-          <Link href="/produk/tambah" className="flex items-center gap-2 px-4 py-2.5 bg-green-400 hover:bg-green-300 text-[#0a0d14] rounded-xl font-black text-sm transition-colors">
-            <Plus className="w-4 h-4" /> Tambah Produk
-          </Link>
-        ) : (
-          <Link href="/upgrade" className="flex items-center gap-2 px-4 py-2.5 bg-[#1a2a1a] border border-green-500/30 text-green-400 rounded-xl font-bold text-sm hover:bg-green-400/10 transition-colors">
-            ✨ Upgrade untuk tambah lebih
-          </Link>
-        )}
+        <button onClick={handleTambahClick}
+          className={`flex items-center gap-2 px-4 py-2.5 rounded-xl font-black text-sm transition-colors ${
+            canAdd
+              ? 'bg-green-400 hover:bg-green-300 text-[#0a0d14]'
+              : 'bg-[#1a2a1a] border border-green-500/30 text-green-400 hover:bg-green-400/10'
+          }`}>
+          {canAdd ? <><Plus className="w-4 h-4" /> Tambah Produk</> : '✨ Upgrade untuk tambah lebih'}
+        </button>
       </div>
+
+      {/* Near limit warning */}
+      {isNearLimit && (
+        <div className="mb-4 flex items-center justify-between bg-yellow-400/10 border border-yellow-400/20 rounded-xl px-4 py-3">
+          <div className="flex items-center gap-2 text-sm text-yellow-400">
+            <AlertTriangle className="w-4 h-4 flex-shrink-0" />
+            <span>Kamu sudah punya <strong>{products.length}/{FREE_TIER.MAX_PRODUK}</strong> produk. Hampir penuh!</span>
+          </div>
+          <button onClick={() => setShowUpgradeModal(true)}
+            className="text-xs font-bold text-yellow-400 hover:text-yellow-300 whitespace-nowrap ml-3">
+            Upgrade →
+          </button>
+        </div>
+      )}
 
       <div className="relative mb-4">
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#64748b]" />
-        <input type="text" placeholder="Cari nama produk atau SKU..." value={search} onChange={e => setSearch(e.target.value)}
+        <input type="text" placeholder="Cari nama produk atau SKU..."
+          value={search} onChange={e => setSearch(e.target.value)}
           className="w-full pl-10 pr-4 py-2.5 bg-[#181c27] border border-[#2a3045] rounded-xl text-white placeholder-[#3a4560] text-sm outline-none focus:border-green-500/40" />
       </div>
 
@@ -85,6 +107,11 @@ export default function ProdukPage() {
           <div className="flex flex-col items-center justify-center py-16 text-[#64748b]">
             <Package className="w-12 h-12 mb-3 opacity-30" />
             <p className="font-semibold">Belum ada produk</p>
+            <p className="text-sm mt-1">Tambah produk pertama kamu</p>
+            <button onClick={handleTambahClick}
+              className="mt-4 px-4 py-2 bg-green-400 hover:bg-green-300 text-[#0a0d14] rounded-xl font-black text-sm transition-colors">
+              + Tambah Produk
+            </button>
           </div>
         ) : (
           <div className="overflow-x-auto">
@@ -108,7 +135,9 @@ export default function ProdukPage() {
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-1.5">
                         {p.stok <= p.stok_minimum && <AlertTriangle className="w-3 h-3 text-yellow-400" />}
-                        <span className={`font-mono font-bold text-sm ${p.stok === 0 ? 'text-red-400' : p.stok <= p.stok_minimum ? 'text-yellow-400' : 'text-white'}`}>{p.stok}</span>
+                        <span className={`font-mono font-bold text-sm ${
+                          p.stok === 0 ? 'text-red-400' : p.stok <= p.stok_minimum ? 'text-yellow-400' : 'text-white'
+                        }`}>{p.stok}</span>
                         <span className="text-xs text-[#64748b]">{p.satuan}</span>
                       </div>
                     </td>
@@ -117,7 +146,8 @@ export default function ProdukPage() {
                     </td>
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-2">
-                        <Link href={`/produk/${p.id}`} className="p-1.5 rounded-lg hover:bg-[#2a3045] text-[#64748b] hover:text-white transition-colors">
+                        <Link href={`/produk/${p.id}`}
+                          className="p-1.5 rounded-lg hover:bg-[#2a3045] text-[#64748b] hover:text-white transition-colors">
                           <Edit2 className="w-3.5 h-3.5" />
                         </Link>
                         <button onClick={() => deleteProduct(p.id)} disabled={deleting === p.id}
@@ -133,6 +163,10 @@ export default function ProdukPage() {
           </div>
         )}
       </div>
+
+      {showUpgradeModal && (
+        <UpgradeModal trigger="produk_limit" onClose={() => setShowUpgradeModal(false)} />
+      )}
     </div>
   )
 }
