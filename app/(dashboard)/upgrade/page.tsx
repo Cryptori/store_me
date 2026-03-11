@@ -2,7 +2,7 @@
 export const dynamic = 'force-dynamic'
 
 import { useState, useEffect } from 'react'
-import { Check, Zap, Loader2 } from 'lucide-react'
+import { Check, Zap, Loader2, Clock } from 'lucide-react'
 import { useStore } from '@/hooks/useStore'
 import { useFreemium } from '@/hooks/useFreemium'
 import { PRO_PRICE } from '@/lib/constants'
@@ -35,25 +35,20 @@ const FAQ = [
 
 export default function UpgradePage() {
   const { store } = useStore()
-  const { isPro } = useFreemium()
+  const { isPro, isTrial, trialDaysLeft, trialStatus } = useFreemium()
   const [billing, setBilling] = useState<'bulanan' | 'tahunan'>('bulanan')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
 
-  // Load Midtrans Snap script via useEffect, bukan inline <script>
   useEffect(() => {
     const scriptSrc = `https://app${process.env.NEXT_PUBLIC_MIDTRANS_IS_PRODUCTION === 'true' ? '' : '.sandbox'}.midtrans.com/snap/snap.js`
     if (document.querySelector(`script[src="${scriptSrc}"]`)) return
-
     const script = document.createElement('script')
     script.src = scriptSrc
     script.setAttribute('data-client-key', process.env.NEXT_PUBLIC_MIDTRANS_CLIENT_KEY ?? '')
     script.async = true
     document.head.appendChild(script)
-
-    return () => {
-      document.head.removeChild(script)
-    }
+    return () => { document.head.removeChild(script) }
   }, [])
 
   async function handleUpgrade() {
@@ -74,22 +69,12 @@ export default function UpgradePage() {
 
       if (typeof window !== 'undefined' && (window as any).snap) {
         ;(window as any).snap.pay(data.token, {
-          onSuccess: () => {
-            window.location.href = `/upgrade/success?order_id=${data.order_id}`
-          },
-          onPending: () => {
-            window.location.href = `/upgrade/success?order_id=${data.order_id}`
-          },
-          onError: () => {
-            setError('Pembayaran gagal, coba lagi')
-            setLoading(false)
-          },
-          onClose: () => {
-            setLoading(false)
-          },
+          onSuccess: () => { window.location.href = `/upgrade/success?order_id=${data.order_id}` },
+          onPending: () => { window.location.href = `/upgrade/success?order_id=${data.order_id}` },
+          onError:   () => { setError('Pembayaran gagal, coba lagi'); setLoading(false) },
+          onClose:   () => { setLoading(false) },
         })
       } else {
-        // Fallback kalau Snap belum load
         window.location.href = data.redirect_url
       }
     } catch (err: any) {
@@ -98,6 +83,7 @@ export default function UpgradePage() {
     }
   }
 
+  // Sudah PRO
   if (isPro) return (
     <div className="p-6 flex flex-col items-center justify-center min-h-[60vh]">
       <div className="text-5xl mb-4">✨</div>
@@ -120,8 +106,29 @@ export default function UpgradePage() {
           <Zap className="w-3.5 h-3.5 text-green-400" />
           <span className="text-green-400 text-xs font-bold uppercase tracking-wide">Upgrade ke PRO</span>
         </div>
+
+        {/* Trial urgency messaging */}
+        {isTrial && trialDaysLeft > 0 && (
+          <div className="inline-flex items-center gap-2 bg-yellow-400/10 border border-yellow-400/30 rounded-xl px-4 py-2 mb-4 ml-2">
+            <Clock className="w-3.5 h-3.5 text-yellow-400" />
+            <span className="text-yellow-400 text-sm font-bold">
+              Trial berakhir dalam {trialDaysLeft} hari
+            </span>
+          </div>
+        )}
+
+        {trialStatus === 'expired' && (
+          <div className="inline-flex items-center gap-2 bg-red-500/10 border border-red-500/30 rounded-xl px-4 py-2 mb-4 ml-2">
+            <span className="text-red-400 text-sm font-bold">⚠️ Trial kamu sudah berakhir</span>
+          </div>
+        )}
+
         <h1 className="text-3xl font-black text-white mb-3">Kelola toko tanpa batas</h1>
-        <p className="text-[#64748b]">Upgrade sekarang dan dapatkan semua fitur premium TokoKu</p>
+        <p className="text-[#64748b]">
+          {isTrial
+            ? 'Kamu sudah merasakan PRO — jangan sampai kehilangan akses!'
+            : 'Upgrade sekarang dan dapatkan semua fitur premium TokoKu'}
+        </p>
       </div>
 
       {/* Billing toggle */}
@@ -129,9 +136,12 @@ export default function UpgradePage() {
         {(['bulanan', 'tahunan'] as const).map(b => (
           <button key={b} onClick={() => setBilling(b)}
             className={`px-5 py-2.5 rounded-xl text-sm font-bold capitalize transition-all border ${
-              billing === b ? 'bg-[#1a2a1a] border-green-500/30 text-green-400' : 'bg-[#181c27] border-[#2a3045] text-[#64748b] hover:text-white'
+              billing === b
+                ? 'bg-[#1a2a1a] border-green-500/30 text-green-400'
+                : 'bg-[#181c27] border-[#2a3045] text-[#64748b] hover:text-white'
             }`}>
-            {b} {b === 'tahunan' && <span className="text-xs text-yellow-400 ml-1">Hemat 2 bulan</span>}
+            {b}{' '}
+            {b === 'tahunan' && <span className="text-xs text-yellow-400 ml-1">Hemat 2 bulan</span>}
           </button>
         ))}
       </div>
@@ -153,7 +163,7 @@ export default function UpgradePage() {
             ))}
           </div>
           <div className="w-full py-3 text-center bg-[#1e2333] border border-[#2a3045] text-[#64748b] rounded-xl text-sm font-bold">
-            Paket Saat Ini
+            {isTrial ? 'Setelah Trial Berakhir' : 'Paket Saat Ini'}
           </div>
         </div>
 

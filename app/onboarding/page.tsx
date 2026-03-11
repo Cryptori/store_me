@@ -4,16 +4,16 @@ export const dynamic = 'force-dynamic'
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
-import { Store, Package, CheckCircle, ArrowRight, Loader2, Sparkles } from 'lucide-react'
+import { Store, Package, CheckCircle, ArrowRight, Loader2, Sparkles, Zap } from 'lucide-react'
 
 type Step = 'toko' | 'produk' | 'selesai'
 
 const CONTOH_PRODUK = [
-  { nama: 'Kopi Hitam', harga_jual: 5000, satuan: 'cup', stok: 100 },
-  { nama: 'Teh Manis', harga_jual: 4000, satuan: 'cup', stok: 100 },
-  { nama: 'Air Mineral', harga_jual: 3000, satuan: 'botol', stok: 50 },
-  { nama: 'Mie Instan', harga_jual: 4500, satuan: 'bungkus', stok: 50 },
-  { nama: 'Roti Tawar', harga_jual: 8000, satuan: 'bungkus', stok: 20 },
+  { nama: 'Kopi Hitam',   harga_jual: 5000,  satuan: 'cup',     stok: 100 },
+  { nama: 'Teh Manis',    harga_jual: 4000,  satuan: 'cup',     stok: 100 },
+  { nama: 'Air Mineral',  harga_jual: 3000,  satuan: 'botol',   stok: 50  },
+  { nama: 'Mie Instan',   harga_jual: 4500,  satuan: 'bungkus', stok: 50  },
+  { nama: 'Roti Tawar',   harga_jual: 8000,  satuan: 'bungkus', stok: 20  },
 ]
 
 export default function OnboardingPage() {
@@ -25,16 +25,14 @@ export default function OnboardingPage() {
   const [storeId, setStoreId] = useState('')
   const [loadingSample, setLoadingSample] = useState(false)
 
-  // ── Step 1: Buat toko
+  const STEPS: Step[] = ['toko', 'produk', 'selesai']
+  const stepIndex = STEPS.indexOf(step)
+
   async function handleBuatToko() {
-    if (!namaToko.trim() || namaToko.trim().length < 3) {
-      setError('Nama toko minimal 3 karakter')
-      return
-    }
-    if (namaToko.trim().length > 50) {
-      setError('Nama toko maksimal 50 karakter')
-      return
-    }
+    const nama = namaToko.trim()
+    if (nama.length < 3) { setError('Nama toko minimal 3 karakter'); return }
+    if (nama.length > 50) { setError('Nama toko maksimal 50 karakter'); return }
+
     setLoading(true)
     setError('')
 
@@ -47,12 +45,9 @@ export default function OnboardingPage() {
       .from('stores').select('id').eq('user_id', user.id).single()
     if (existing) { router.replace('/dashboard'); return }
 
+    // Buat toko
     const { data: store, error: err } = await (supabase as any)
-      .from('stores').insert({
-        user_id: user.id,
-        nama: namaToko.trim(),
-        is_pro: false,
-      }).select().single()
+      .from('stores').insert({ user_id: user.id, nama }).select().single()
 
     if (err || !store) {
       setError('Gagal membuat toko, coba lagi')
@@ -60,12 +55,19 @@ export default function OnboardingPage() {
       return
     }
 
+    // Auto-aktivasi trial PRO 7 hari
+    try {
+      await (supabase as any).rpc('activate_trial', { p_store_id: store.id })
+    } catch {
+      // Trial gagal tidak critical — toko tetap dibuat
+      console.warn('Trial activation failed, continuing without trial')
+    }
+
     setStoreId(store.id)
     setLoading(false)
     setStep('produk')
   }
 
-  // ── Step 2: Tambah produk contoh
   async function handleTambahSample() {
     if (!storeId) return
     setLoadingSample(true)
@@ -85,15 +87,6 @@ export default function OnboardingPage() {
     setStep('selesai')
   }
 
-  function handleSkipProduk() {
-    setStep('selesai')
-  }
-
-  function handleMulai() {
-    // Hard reload agar useStore fetch ulang
-    window.location.href = '/dashboard'
-  }
-
   return (
     <div className="min-h-screen bg-[#0a0d14] flex items-center justify-center p-4">
       <div className="w-full max-w-md">
@@ -108,20 +101,20 @@ export default function OnboardingPage() {
 
         {/* Step indicator */}
         <div className="flex items-center justify-center gap-2 mb-8">
-          {(['toko', 'produk', 'selesai'] as Step[]).map((s, i) => (
+          {STEPS.map((s, i) => (
             <div key={s} className="flex items-center gap-2">
               <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-black transition-all ${
-                step === s
+                stepIndex > i
+                  ? 'bg-green-400/30 text-green-400'
+                  : step === s
                   ? 'bg-green-400 text-[#0a0d14]'
-                  : ['toko', 'produk', 'selesai'].indexOf(step) > i
-                    ? 'bg-green-400/30 text-green-400'
-                    : 'bg-[#181c27] text-[#64748b]'
+                  : 'bg-[#181c27] text-[#64748b]'
               }`}>
-                {['toko', 'produk', 'selesai'].indexOf(step) > i
-                  ? <CheckCircle className="w-4 h-4" />
-                  : i + 1}
+                {stepIndex > i ? <CheckCircle className="w-4 h-4" /> : i + 1}
               </div>
-              {i < 2 && <div className={`w-8 h-0.5 ${['toko', 'produk', 'selesai'].indexOf(step) > i ? 'bg-green-400/40' : 'bg-[#2a3045]'}`} />}
+              {i < STEPS.length - 1 && (
+                <div className={`w-8 h-0.5 ${stepIndex > i ? 'bg-green-400/40' : 'bg-[#2a3045]'}`} />
+              )}
             </div>
           ))}
         </div>
@@ -129,8 +122,16 @@ export default function OnboardingPage() {
         {/* ── STEP 1: Nama Toko ── */}
         {step === 'toko' && (
           <div className="bg-[#0f1117] border border-[#2a3045] rounded-2xl p-6">
+            {/* Trial badge */}
+            <div className="flex items-center gap-2 bg-green-400/10 border border-green-400/20 rounded-xl px-3 py-2 mb-5">
+              <Zap className="w-3.5 h-3.5 text-green-400 flex-shrink-0" />
+              <span className="text-xs text-green-400 font-bold">
+                Daftar sekarang — dapat PRO gratis 7 hari!
+              </span>
+            </div>
+
             <h1 className="text-xl font-black text-white mb-1">Nama toko kamu apa?</h1>
-            <p className="text-sm text-[#64748b] mb-6">Ini akan muncul di struk dan laporan kamu.</p>
+            <p className="text-sm text-[#64748b] mb-5">Ini akan muncul di struk dan laporan kamu.</p>
 
             <div className="space-y-4">
               <div>
@@ -138,7 +139,7 @@ export default function OnboardingPage() {
                   type="text"
                   placeholder="Contoh: Warung Bu Siti"
                   value={namaToko}
-                  onChange={e => setNamaToko(e.target.value)}
+                  onChange={e => { setNamaToko(e.target.value); setError('') }}
                   onKeyDown={e => e.key === 'Enter' && handleBuatToko()}
                   maxLength={50}
                   autoFocus
@@ -158,7 +159,7 @@ export default function OnboardingPage() {
                 className="w-full py-3 bg-green-400 hover:bg-green-300 disabled:opacity-40 text-[#0a0d14] rounded-xl font-black text-sm transition-colors flex items-center justify-center gap-2">
                 {loading
                   ? <><Loader2 className="w-4 h-4 animate-spin" /> Membuat toko...</>
-                  : <>Lanjut <ArrowRight className="w-4 h-4" /></>}
+                  : <>Mulai & Aktifkan Trial PRO <ArrowRight className="w-4 h-4" /></>}
               </button>
             </div>
           </div>
@@ -167,8 +168,18 @@ export default function OnboardingPage() {
         {/* ── STEP 2: Produk Contoh ── */}
         {step === 'produk' && (
           <div className="bg-[#0f1117] border border-[#2a3045] rounded-2xl p-6">
+            {/* Trial activated confirmation */}
+            <div className="flex items-center gap-2 bg-green-400/10 border border-green-400/20 rounded-xl px-3 py-2 mb-5">
+              <CheckCircle className="w-3.5 h-3.5 text-green-400 flex-shrink-0" />
+              <span className="text-xs text-green-400 font-bold">
+                ✨ PRO Trial 7 hari berhasil diaktifkan!
+              </span>
+            </div>
+
             <h1 className="text-xl font-black text-white mb-1">Tambah produk contoh?</h1>
-            <p className="text-sm text-[#64748b] mb-5">Gue bisa isi 5 produk contoh biar kamu bisa langsung coba kasir. Bisa dihapus kapan saja.</p>
+            <p className="text-sm text-[#64748b] mb-5">
+              Isi 5 produk contoh biar kamu bisa langsung coba kasir. Bisa dihapus kapan saja.
+            </p>
 
             <div className="space-y-2 mb-5">
               {CONTOH_PRODUK.map(p => (
@@ -190,16 +201,13 @@ export default function OnboardingPage() {
             </div>
 
             <div className="space-y-2">
-              <button
-                onClick={handleTambahSample}
-                disabled={loadingSample}
+              <button onClick={handleTambahSample} disabled={loadingSample}
                 className="w-full py-3 bg-green-400 hover:bg-green-300 disabled:opacity-40 text-[#0a0d14] rounded-xl font-black text-sm transition-colors flex items-center justify-center gap-2">
                 {loadingSample
                   ? <><Loader2 className="w-4 h-4 animate-spin" /> Menambahkan...</>
                   : <><Sparkles className="w-4 h-4" /> Iya, tambahkan produk contoh</>}
               </button>
-              <button
-                onClick={handleSkipProduk}
+              <button onClick={() => setStep('selesai')}
                 className="w-full py-3 bg-[#181c27] hover:bg-[#1e2333] text-[#64748b] hover:text-white rounded-xl font-bold text-sm transition-colors">
                 Skip, saya isi sendiri nanti
               </button>
@@ -213,16 +221,26 @@ export default function OnboardingPage() {
             <div className="w-16 h-16 rounded-full bg-green-400/20 border-2 border-green-400/30 flex items-center justify-center mx-auto mb-4">
               <CheckCircle className="w-8 h-8 text-green-400" />
             </div>
-            <h1 className="text-xl font-black text-white mb-2">Toko kamu siap! 🎉</h1>
-            <p className="text-sm text-[#64748b] mb-2">
+            <h1 className="text-xl font-black text-white mb-2">Toko siap! 🎉</h1>
+            <p className="text-sm text-[#64748b] mb-1">
               <strong className="text-white">{namaToko}</strong> berhasil dibuat.
             </p>
-            <p className="text-sm text-[#64748b] mb-6">
-              Yuk mulai catat transaksi pertama kamu!
+            <p className="text-sm text-[#64748b] mb-5">
+              Kamu punya akses PRO gratis selama <strong className="text-green-400">7 hari</strong>.
             </p>
 
+            {/* Trial info card */}
+            <div className="bg-green-400/10 border border-green-400/20 rounded-xl p-3 mb-5 text-left">
+              <div className="text-xs font-bold text-green-400 mb-2">Yang kamu dapat selama trial:</div>
+              {['Produk & pelanggan unlimited', 'Laporan bulanan lengkap', 'Export PDF laporan'].map(f => (
+                <div key={f} className="flex items-center gap-2 text-xs text-[#94a3b8] mb-1">
+                  <CheckCircle className="w-3 h-3 text-green-400 flex-shrink-0" /> {f}
+                </div>
+              ))}
+            </div>
+
             <div className="space-y-2">
-              <button onClick={handleMulai}
+              <button onClick={() => window.location.href = '/dashboard'}
                 className="w-full py-3 bg-green-400 hover:bg-green-300 text-[#0a0d14] rounded-xl font-black text-sm transition-colors flex items-center justify-center gap-2">
                 Buka Dashboard <ArrowRight className="w-4 h-4" />
               </button>

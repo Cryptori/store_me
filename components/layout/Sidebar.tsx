@@ -9,6 +9,8 @@ import {
   Store, X, ArrowRight,
 } from 'lucide-react'
 import { FREE_TIER } from '@/lib/constants'
+import { useFreemium } from '@/hooks/useFreemium'
+import TrialBanner from '@/components/shared/TrialBanner'
 import type { Store as StoreType } from '@/types/database'
 
 const NAV_ITEMS = [
@@ -22,7 +24,6 @@ const NAV_ITEMS = [
   { href: '/pengaturan', label: 'Pengaturan',  icon: Settings },
 ]
 
-// Pesan yang bergantian muncul di toast
 const UPGRADE_MESSAGES = [
   { emoji: '📊', text: 'Laporan bulanan tersedia di PRO' },
   { emoji: '📦', text: 'Produk unlimited mulai Rp 49k/bln' },
@@ -41,28 +42,26 @@ type Props = {
 
 export default function Sidebar({ store, stokAlert, hutangAlert, produkCount, onClose, onLogout }: Props) {
   const pathname = usePathname()
+  const { isPro, isTrial, trialDaysLeft, showTrialBanner, trialStatus } = useFreemium()
+
   const [toastVisible, setToastVisible] = useState(false)
   const [toastDismissed, setToastDismissed] = useState(false)
   const [msgIndex, setMsgIndex] = useState(0)
 
-  const isFree = store && !store.is_pro
+  const isFree = store && !isPro && !isTrial
 
+  // Upgrade toast — hanya untuk FREE (bukan trial)
   useEffect(() => {
     if (!isFree || toastDismissed) return
-
-    // Muncul pertama kali setelah 3 detik
     const showTimer = setTimeout(() => setToastVisible(true), 3000)
     return () => clearTimeout(showTimer)
   }, [isFree, toastDismissed])
 
   useEffect(() => {
     if (!isFree || toastDismissed || !toastVisible) return
-
-    // Ganti pesan setiap 4 detik, hilang setelah 3x siklus lalu muncul lagi
     const cycleTimer = setInterval(() => {
       setMsgIndex(i => {
         const next = (i + 1) % UPGRADE_MESSAGES.length
-        // Kalau sudah 1 putaran penuh, sembunyikan dulu 10 detik
         if (next === 0) {
           setToastVisible(false)
           setTimeout(() => setToastVisible(true), 10_000)
@@ -70,11 +69,18 @@ export default function Sidebar({ store, stokAlert, hutangAlert, produkCount, on
         return next
       })
     }, 4000)
-
     return () => clearInterval(cycleTimer)
   }, [isFree, toastDismissed, toastVisible])
 
   const msg = UPGRADE_MESSAGES[msgIndex]
+
+  // Badge label untuk store info
+  const storeBadgeLabel = isPro ? '✨ PRO' : isTrial ? `🔥 TRIAL` : 'FREE'
+  const storeBadgeClass = isPro
+    ? 'bg-cyan-400/10 text-cyan-400 border-cyan-400/20'
+    : isTrial
+    ? 'bg-yellow-400/10 text-yellow-400 border-yellow-400/20'
+    : 'bg-green-400/10 text-green-400 border-green-400/20'
 
   return (
     <aside className="flex flex-col h-full bg-[#0f1117] border-r border-[#2a3045]">
@@ -95,14 +101,15 @@ export default function Sidebar({ store, stokAlert, hutangAlert, produkCount, on
         <div className="mx-3 mt-3 p-3 bg-[#181c27] rounded-xl border border-[#2a3045]">
           <div className="text-sm font-bold text-white truncate">{store.nama}</div>
           <div className="flex items-center gap-1.5 mt-1">
-            <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded border ${
-              store.is_pro
-                ? 'bg-cyan-400/10 text-cyan-400 border-cyan-400/20'
-                : 'bg-green-400/10 text-green-400 border-green-400/20'
-            }`}>
-              {store.is_pro ? '✨ PRO' : 'FREE'}
+            <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded border ${storeBadgeClass}`}>
+              {storeBadgeLabel}
             </span>
-            {!store.is_pro && (
+            {isTrial && trialDaysLeft > 0 && (
+              <span className="text-[10px] text-yellow-400 font-semibold">
+                {trialDaysLeft}h lagi
+              </span>
+            )}
+            {!isPro && !isTrial && (
               <span className="text-[10px] text-[#64748b]">
                 {produkCount}/{FREE_TIER.MAX_PRODUK} produk
               </span>
@@ -135,47 +142,54 @@ export default function Sidebar({ store, stokAlert, hutangAlert, produkCount, on
         })}
       </nav>
 
-      {/* Upgrade toast — muncul/hilang otomatis untuk FREE user */}
+      {/* Trial banner — muncul kalau trial aktif & <= 3 hari lagi */}
+      {isTrial && showTrialBanner && (
+        <TrialBanner daysLeft={trialDaysLeft} />
+      )}
+
+      {/* Trial expired banner */}
+      {trialStatus === 'expired' && (
+        <div className="mx-3 mb-2 bg-[#1a1010] border border-red-500/30 rounded-xl p-3">
+          <div className="text-[11px] font-black text-red-400 mb-1">Trial sudah berakhir</div>
+          <div className="text-[10px] text-[#64748b] mb-2">Upgrade untuk lanjut pakai fitur PRO</div>
+          <Link href="/upgrade" onClick={onClose}
+            className="flex items-center justify-center gap-1 w-full py-1.5 bg-red-500 hover:bg-red-400 text-white rounded-lg text-[11px] font-black transition-colors">
+            Upgrade Sekarang <ArrowRight className="w-3 h-3" />
+          </Link>
+        </div>
+      )}
+
+      {/* Upgrade toast — hanya untuk FREE (tidak pernah trial) */}
       {isFree && !toastDismissed && (
         <div className={`mx-3 mb-2 transition-all duration-500 ease-in-out ${
-          toastVisible
-            ? 'opacity-100 translate-y-0'
-            : 'opacity-0 translate-y-2 pointer-events-none'
+          toastVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-2 pointer-events-none'
         }`}>
           <div className="relative bg-gradient-to-br from-[#1a2a1a] to-[#0f1f1a] border border-green-500/30 rounded-xl p-3 shadow-lg shadow-green-900/10">
-            {/* Dismiss button */}
             <button
               onClick={() => { setToastVisible(false); setToastDismissed(true) }}
-              className="absolute top-2 right-2 text-[#3a4560] hover:text-[#64748b] transition-colors"
-            >
+              className="absolute top-2 right-2 text-[#3a4560] hover:text-[#64748b] transition-colors">
               <X className="w-3 h-3" />
             </button>
-
             <div className="flex items-start gap-2.5 pr-4">
               <div className="w-7 h-7 rounded-lg bg-green-400/10 border border-green-400/20 flex items-center justify-center flex-shrink-0 mt-0.5">
                 <Zap className="w-3.5 h-3.5 text-green-400" />
               </div>
               <div className="min-w-0">
                 <div className="text-[11px] font-black text-green-400 mb-0.5">Upgrade ke PRO</div>
-                {/* Pesan berganti dengan animasi */}
                 <div className="text-[10px] text-[#94a3b8] leading-relaxed">
                   {msg.emoji} {msg.text}
                 </div>
               </div>
             </div>
-
-            <Link
-              href="/upgrade"
-              onClick={onClose}
-              className="mt-2.5 flex items-center justify-center gap-1.5 w-full py-1.5 bg-green-400 hover:bg-green-300 text-[#0a0d14] rounded-lg text-[11px] font-black transition-colors"
-            >
+            <Link href="/upgrade" onClick={onClose}
+              className="mt-2.5 flex items-center justify-center gap-1.5 w-full py-1.5 bg-green-400 hover:bg-green-300 text-[#0a0d14] rounded-lg text-[11px] font-black transition-colors">
               Mulai dari Rp 49k/bln <ArrowRight className="w-3 h-3" />
             </Link>
           </div>
         </div>
       )}
 
-      {/* Upgrade banner static (tetap ada di bawah toast, lebih minimalis) */}
+      {/* Minimalist upgrade link kalau toast di-dismiss */}
       {isFree && toastDismissed && (
         <div className="mx-3 mb-3">
           <Link href="/upgrade" onClick={onClose}
