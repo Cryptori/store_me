@@ -6,6 +6,15 @@ import { ShoppingCart } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { formatRupiah } from '@/lib/utils'
 import { useStore } from '@/hooks/useStore'
+import { useOfflineSync } from '@/hooks/useOfflineSync'
+import {
+  getCachedProducts,
+  getCachedCustomers,
+  cacheProducts,
+  cacheCustomers,
+  saveOfflineTransaction,
+  decrementCachedStok,
+} from '@/lib/offlineDB'
 import type { Product, Customer, Category } from '@/types/database'
 import type { CartItem, MetodeBayar } from '@/components/kasir/types'
 import ProductGrid from '@/components/kasir/ProductGrid'
@@ -13,63 +22,100 @@ import CartPanel from '@/components/kasir/CartPanel'
 import CheckoutModal from '@/components/kasir/CheckoutModal'
 import SuccessModal from '@/components/kasir/SuccessModal'
 import CustomerPicker from '@/components/kasir/CustomerPicker'
+import OfflineStatusBar from '@/components/kasir/OfflineStatusBar'
 import { printStruk, shareStrukWA, copyStrukToClipboard } from '@/components/kasir/printStruk'
 
 export default function KasirPage() {
   const { store } = useStore()
+  const { isOnline, pendingCount, syncStatus, syncPending, refreshCache } = useOfflineSync(store?.id)
 
-  const [products, setProducts] = useState<Product[]>([])
+  const [products, setProducts]               = useState<Product[]>([])
   const [filteredProducts, setFilteredProducts] = useState<Product[]>([])
-  const [customers, setCustomers] = useState<Customer[]>([])
-  const [categories, setCategories] = useState<Category[]>([])
+  const [customers, setCustomers]             = useState<Customer[]>([])
+  const [categories, setCategories]           = useState<Category[]>([])
   const [loadingProducts, setLoadingProducts] = useState(true)
 
-  const [cart, setCart] = useState<CartItem[]>([])
-  const [search, setSearch] = useState('')
+  const [cart, setCart]                   = useState<CartItem[]>([])
+  const [search, setSearch]               = useState('')
   const [selectedCategory, setSelectedCategory] = useState('')
 
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null)
-  const [customerSearch, setCustomerSearch] = useState('')
+  const [customerSearch, setCustomerSearch]     = useState('')
   const [showCustomerPicker, setShowCustomerPicker] = useState(false)
 
-  const [showCheckout, setShowCheckout] = useState(false)
-  const [metodeBayar, setMetodeBayar] = useState<MetodeBayar>('tunai')
-  const [bayar, setBayar] = useState('')
+  const [showCheckout, setShowCheckout]     = useState(false)
+  const [metodeBayar, setMetodeBayar]       = useState<MetodeBayar>('tunai')
+  const [bayar, setBayar]                   = useState('')
   const [loadingCheckout, setLoadingCheckout] = useState(false)
 
-  const [showSuccess, setShowSuccess] = useState(false)
+  const [showSuccess, setShowSuccess]       = useState(false)
   const [lastTransaction, setLastTransaction] = useState<string | null>(null)
-  const [lastCart, setLastCart] = useState<CartItem[]>([])
-  const [lastMetode, setLastMetode] = useState<MetodeBayar>('tunai')
-  const [lastBayar, setLastBayar] = useState(0)
-  const [lastKembalian, setLastKembalian] = useState(0)
-  const [lastTotal, setLastTotal] = useState(0)
-  const [lastCustomer, setLastCustomer] = useState<Customer | null>(null)
+  const [lastCart, setLastCart]             = useState<CartItem[]>([])
+  const [lastMetode, setLastMetode]         = useState<MetodeBayar>('tunai')
+  const [lastBayar, setLastBayar]           = useState(0)
+  const [lastKembalian, setLastKembalian]   = useState(0)
+  const [lastTotal, setLastTotal]           = useState(0)
+  const [lastCustomer, setLastCustomer]     = useState<Customer | null>(null)
+  const [showCart, setShowCart]             = useState(false)
 
-  const [showCart, setShowCart] = useState(false)
-
+  // Load data — online: dari Supabase + cache, offline: dari IndexedDB
   useEffect(() => {
     if (!store) return
-    async function init() {
-      const supabase = createClient()
-      const [{ data: produkData }, { data: pelangganData }, { data: kategoriData }] = await Promise.all([
-        supabase.from('products').select('*')
-          .eq('store_id', store!.id).eq('is_active', true).gt('stok', 0).order('nama'),
-        supabase.from('customers').select('*')
-          .eq('store_id', store!.id).order('nama'),
-        (supabase as any).from('categories').select('*')
-          .eq('store_id', store!.id).order('nama'),
-      ])
-      setProducts((produkData ?? []) as Product[])
-      setFilteredProducts((produkData ?? []) as Product[])
-      setCustomers((pelangganData ?? []) as Customer[])
-      setCategories((kategoriData ?? []) as Category[])
-      setLoadingProducts(false)
-    }
-    init()
-  }, [store])
+    loadData()
+  }, [store, isOnline])
 
-  // Filter produk berdasarkan search + kategori
+  async function loadData() {
+    setLoadingProducts(true)
+
+    if (isOnline) {
+      try {
+        const supabase = createClient()
+        const [{ data: produkData }, { data: pelangganData }, { data: kategoriData }] = await Promise.all([
+          supabase.from('products').select('*')
+            .eq('store_id', store!.id).eq('is_active', true).gt('stok', 0).order('nama'),
+          supabase.from('customers').select('*')
+            .eq('store_id', store!.id).order('nama'),
+          (supabase as any).from('categories').select('*')
+            .eq('store_id', store!.id).order('nama'),
+        ])
+
+        const p = (produkData ?? []) as Product[]
+        const c = (pelangganData ?? []) as Customer[]
+
+        setProducts(p)
+        setFilteredProducts(p)
+        setCustomers(c)
+        setCategories((kategoriData ?? []) as Category[])
+
+        // Update cache di background
+        await Promise.all([
+          cacheProducts(store!.id, p as any),
+          cacheCustomers(store!.id, c as any),
+        ])
+      } catch {
+        // Online tapi fetch gagal — fallback ke cache
+        await loadFromCache()
+      }
+    } else {
+      await loadFromCache()
+    }
+
+    setLoadingProducts(false)
+  }
+
+  async function loadFromCache() {
+    const [cachedProducts, cachedCustomers] = await Promise.all([
+      getCachedProducts(store!.id),
+      getCachedCustomers(store!.id),
+    ])
+    const p = cachedProducts.filter(p => p.stok > 0) as unknown as Product[]
+    setProducts(p)
+    setFilteredProducts(p)
+    setCustomers(cachedCustomers as unknown as Customer[])
+    setCategories([]) // kategori tidak di-cache — oke untuk offline
+  }
+
+  // Filter produk
   useEffect(() => {
     const q = search.toLowerCase()
     setFilteredProducts(products.filter(p => {
@@ -79,9 +125,9 @@ export default function KasirPage() {
     }))
   }, [search, products, selectedCategory])
 
-  const total = cart.reduce((sum, item) => sum + item.subtotal, 0)
-  const totalQty = cart.reduce((s, i) => s + i.qty, 0)
-  const kembalian = metodeBayar === 'tunai' ? Math.max(0, Number(bayar) - total) : 0
+  const total      = cart.reduce((sum, i) => sum + i.subtotal, 0)
+  const totalQty   = cart.reduce((s, i) => s + i.qty, 0)
+  const kembalian  = metodeBayar === 'tunai' ? Math.max(0, Number(bayar) - total) : 0
 
   function addToCart(product: Product) {
     setCart(prev => {
@@ -116,88 +162,152 @@ export default function KasirPage() {
     if (metodeBayar === 'hutang' && !selectedCustomer) return
     setLoadingCheckout(true)
 
-    const supabase = createClient()
-    const db = supabase as any
+    const kembalianFinal = metodeBayar === 'tunai' ? Math.max(0, Number(bayar) - total) : 0
 
-    const { data: nomorData } = await db.rpc('generate_nomor_transaksi', { p_store_id: store.id })
-    const nomor = (nomorData ?? `TRX-FALLBACK-${Date.now()}`) as unknown as string
+    if (!isOnline) {
+      // ── OFFLINE: simpan ke IndexedDB ────────────────────────
+      const offlineTx = {
+        id: crypto.randomUUID(),
+        store_id: store.id,
+        items: cart.map(i => ({
+          product_id: i.product_id,
+          nama_produk: i.nama_produk,
+          harga_jual: i.harga_jual,
+          qty: i.qty,
+          subtotal: i.subtotal,
+        })),
+        total,
+        metode_bayar: metodeBayar,
+        bayar: Number(bayar),
+        kembalian: kembalianFinal,
+        customer_id: selectedCustomer?.id,
+        customer_nama: selectedCustomer?.nama,
+        created_at: new Date().toISOString(),
+        synced: false,
+      }
 
-    const { data: trx, error: trxError } = await db.from('transactions').insert({
-      store_id: store.id,
-      customer_id: selectedCustomer?.id ?? null,
-      nomor_transaksi: nomor,
-      total,
-      bayar: metodeBayar === 'tunai' ? Number(bayar) : total,
-      kembalian: metodeBayar === 'tunai' ? kembalian : 0,
-      metode_bayar: metodeBayar,
-      status: 'selesai',
-    }).select().single()
+      await saveOfflineTransaction(offlineTx)
 
-    if (trxError || !trx) {
-      alert('Gagal menyimpan transaksi')
+      // Update stok lokal di IndexedDB
+      for (const item of cart) {
+        await decrementCachedStok(item.product_id, item.qty)
+      }
+
+      // Update products state lokal
+      setProducts(prev => prev.map(p => {
+        const item = cart.find(i => i.product_id === p.id)
+        if (!item) return p
+        return { ...p, stok: Math.max(0, p.stok - item.qty) }
+      }).filter(p => p.stok > 0))
+
+      const nomorFake = `OFFLINE-${Date.now()}`
+      setLastTransaction(nomorFake)
+      setLastCart([...cart])
+      setLastMetode(metodeBayar)
+      setLastBayar(Number(bayar))
+      setLastKembalian(kembalianFinal)
+      setLastTotal(total)
+      setLastCustomer(selectedCustomer)
+      setCart([])
+      setSelectedCustomer(null)
+      setBayar('')
+      setMetodeBayar('tunai')
+      setShowCheckout(false)
+      setShowSuccess(true)
       setLoadingCheckout(false)
       return
     }
 
-    await db.from('transaction_items').insert(
-      cart.map(item => ({
-        transaction_id: trx.id,
-        product_id: item.product_id,
-        nama_produk: item.nama_produk,
-        harga_jual: item.harga_jual,
-        qty: item.qty,
-        subtotal: item.subtotal,
-      }))
-    )
+    // ── ONLINE: proses normal ke Supabase ───────────────────
+    try {
+      const supabase = createClient()
+      const db = supabase as any
 
-    for (const item of cart) {
-      const { data: produk } = await db.from('products').select('stok').eq('id', item.product_id).single()
-      const stokSebelum = (produk?.stok ?? 0) as number
-      const stokSesudah = stokSebelum - item.qty
-      await Promise.all([
-        db.from('products').update({ stok: stokSesudah, updated_at: new Date().toISOString() }).eq('id', item.product_id),
-        db.from('stock_logs').insert({
-          product_id: item.product_id, store_id: store.id,
-          tipe: 'keluar', jumlah: item.qty,
-          stok_sebelum: stokSebelum, stok_sesudah: stokSesudah,
-          keterangan: `Transaksi ${nomor}`,
-        }),
-      ])
+      const { data: nomorData } = await db.rpc('generate_nomor_transaksi', { p_store_id: store.id })
+
+      const { data: trxData, error: trxErr } = await db
+        .from('transactions')
+        .insert({
+          store_id: store.id,
+          customer_id: selectedCustomer?.id ?? null,
+          nomor_transaksi: nomorData,
+          total,
+          bayar: Number(bayar),
+          kembalian: kembalianFinal,
+          metode_bayar: metodeBayar,
+          status: 'selesai',
+        })
+        .select()
+        .single()
+
+      if (trxErr || !trxData) throw new Error('Transaksi gagal')
+
+      await db.from('transaction_items').insert(
+        cart.map(i => ({
+          transaction_id: trxData.id,
+          product_id: i.product_id,
+          nama_produk: i.nama_produk,
+          harga_jual: i.harga_jual,
+          qty: i.qty,
+          subtotal: i.subtotal,
+        }))
+      )
+
+      // Update stok
+      await Promise.all(cart.map(item =>
+        db.from('products').update({
+          stok: (products.find(p => p.id === item.product_id)?.stok ?? 0) - item.qty,
+        }).eq('id', item.product_id)
+      ))
+
+      // Hutang
+      if (metodeBayar === 'hutang' && selectedCustomer) {
+        await db.from('debts').insert({
+          store_id: store.id,
+          customer_id: selectedCustomer.id,
+          transaction_id: trxData.id,
+          jumlah: total,
+          sisa: total,
+          status: 'belum_lunas',
+        })
+        await db.from('customers').update({
+          total_hutang: supabase.rpc as any,
+        })
+      }
+
+      // Update products
+      setProducts(prev => prev.map(p => {
+        const item = cart.find(i => i.product_id === p.id)
+        if (!item) return p
+        return { ...p, stok: Math.max(0, p.stok - item.qty) }
+      }).filter(p => p.stok > 0))
+
+      setLastTransaction(trxData.nomor_transaksi)
+      setLastCart([...cart])
+      setLastMetode(metodeBayar)
+      setLastBayar(Number(bayar))
+      setLastKembalian(kembalianFinal)
+      setLastTotal(total)
+      setLastCustomer(selectedCustomer)
+      setCart([])
+      setSelectedCustomer(null)
+      setBayar('')
+      setMetodeBayar('tunai')
+      setShowCheckout(false)
+      setShowSuccess(true)
+    } catch (err) {
+      console.error('Checkout error:', err)
+      alert('Transaksi gagal. Coba lagi.')
     }
 
-    if (metodeBayar === 'hutang' && selectedCustomer) {
-      await db.from('debts').insert({
-        store_id: store.id, customer_id: selectedCustomer.id,
-        transaction_id: trx.id, jumlah: total, sisa: total, status: 'belum_lunas',
-      })
-    }
-
-    setLastCart([...cart])
-    setLastMetode(metodeBayar)
-    setLastBayar(Number(bayar))
-    setLastKembalian(kembalian)
-    setLastTotal(total)
-    setLastCustomer(selectedCustomer)
-    setLastTransaction(nomor)
-
-    setCart([])
-    setShowCheckout(false)
-    setMetodeBayar('tunai')
-    setBayar('')
-    setSelectedCustomer(null)
     setLoadingCheckout(false)
-    setShowSuccess(true)
-    setShowCart(false)
-
-    const { data: refreshed } = await supabase.from('products').select('*')
-      .eq('store_id', store.id).eq('is_active', true).gt('stok', 0).order('nama')
-    setProducts((refreshed ?? []) as Product[])
   }
 
   function getStrukProps() {
+    if (!lastTransaction || !store) return null
     return {
-      storeName: store!.nama,
-      nomorTransaksi: lastTransaction!,
+      nomorTransaksi: lastTransaction,
+      storeName: store.nama,
       cart: lastCart,
       total: lastTotal,
       metodeBayar: lastMetode,
@@ -208,75 +318,82 @@ export default function KasirPage() {
     }
   }
 
-  function handlePrint() { if (store && lastTransaction) printStruk(getStrukProps()) }
-  function handleShareWA() { if (store && lastTransaction) shareStrukWA(getStrukProps()) }
-  async function handleCopyStruk() {
-    if (!store || !lastTransaction) return false
-    return copyStrukToClipboard(getStrukProps())
+  function handlePrint()   { const p = getStrukProps(); if (p) printStruk(p) }
+  function handleShareWA() { const p = getStrukProps(); if (p) shareStrukWA(p) }
+  async function handleCopyStruk(): Promise<boolean> {
+    const p = getStrukProps()
+    if (!p) return false
+    return copyStrukToClipboard(p)
   }
 
   return (
-    <div className="flex h-[calc(100vh-57px)] md:h-screen overflow-hidden relative">
-      <ProductGrid
-        products={filteredProducts}
-        cart={cart}
-        search={search}
-        loading={loadingProducts}
-        categories={categories}
-        selectedCategory={selectedCategory}
-        onSearch={setSearch}
-        onAddToCart={addToCart}
-        onCategoryChange={setSelectedCategory}
-        allProducts={products} 
+    <div className="flex flex-col h-[calc(100vh-57px)] md:h-screen overflow-hidden">
+      {/* Offline/sync status bar */}
+      <OfflineStatusBar
+        isOnline={isOnline}
+        pendingCount={pendingCount}
+        syncStatus={syncStatus}
+        onSync={syncPending}
       />
 
-      <div className="hidden md:flex md:w-80 lg:w-96 flex-col">
-        <CartPanel
+      <div className="flex flex-1 overflow-hidden relative">
+        <ProductGrid
+          products={filteredProducts}
           cart={cart}
-          total={total}
-          selectedCustomer={selectedCustomer}
-          onUpdateQty={updateQty}
-          onRemove={removeFromCart}
-          onClear={() => setCart([])}
-          onCheckout={() => setShowCheckout(true)}
-          onSelectCustomer={() => setShowCustomerPicker(true)}
-          onClearCustomer={() => setSelectedCustomer(null)}
+          search={search}
+          loading={loadingProducts}
+          categories={categories}
+          selectedCategory={selectedCategory}
+          onSearch={setSearch}
+          onAddToCart={addToCart}
+          onCategoryChange={setSelectedCategory}
+          allProducts={products}
         />
-      </div>
 
-      {/* Mobile cart */}
-      <div className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-[#181c27] border-t border-[#2a3045] p-3">
-        {showCart ? (
-          <div className="fixed inset-0 z-50 flex flex-col justify-end">
-            <div className="flex-1 bg-black/60" onClick={() => setShowCart(false)} />
-            <div className="bg-[#181c27] border-t border-[#2a3045] h-[75vh] flex flex-col">
-              <CartPanel
-                cart={cart}
-                total={total}
-                selectedCustomer={selectedCustomer}
-                onUpdateQty={updateQty}
-                onRemove={removeFromCart}
-                onClear={() => setCart([])}
-                onCheckout={() => { setShowCart(false); setShowCheckout(true) }}
-                onSelectCustomer={() => setShowCustomerPicker(true)}
-                onClearCustomer={() => setSelectedCustomer(null)}
-                onCloseCart={() => setShowCart(false)}
-                isMobile
-              />
+        <div className="hidden md:flex md:w-80 lg:w-96 flex-col">
+          <CartPanel
+            cart={cart}
+            total={total}
+            selectedCustomer={selectedCustomer}
+            onUpdateQty={updateQty}
+            onRemove={removeFromCart}
+            onClear={() => setCart([])}
+            onCheckout={() => setShowCheckout(true)}
+            onSelectCustomer={() => setShowCustomerPicker(true)}
+            onClearCustomer={() => setSelectedCustomer(null)}
+          />
+        </div>
+
+        {/* Mobile cart bar */}
+        <div className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-[#181c27] border-t border-[#2a3045] p-3">
+          {showCart ? (
+            <div className="fixed inset-0 z-50 flex flex-col justify-end">
+              <div className="flex-1 bg-black/60" onClick={() => setShowCart(false)} />
+              <div className="bg-[#181c27] border-t border-[#2a3045] h-[75vh] flex flex-col">
+                <CartPanel
+                  cart={cart} total={total} selectedCustomer={selectedCustomer}
+                  onUpdateQty={updateQty} onRemove={removeFromCart}
+                  onClear={() => setCart([])}
+                  onCheckout={() => { setShowCart(false); setShowCheckout(true) }}
+                  onSelectCustomer={() => setShowCustomerPicker(true)}
+                  onClearCustomer={() => setSelectedCustomer(null)}
+                  onCloseCart={() => setShowCart(false)} isMobile
+                />
+              </div>
             </div>
-          </div>
-        ) : (
-          <button onClick={() => setShowCart(true)}
-            className="w-full flex items-center justify-between px-4 py-3 rounded-xl bg-green-400 text-[#0a0d14]">
-            <div className="flex items-center gap-2">
-              <ShoppingCart className="w-4 h-4" />
-              <span className="font-black text-sm">
-                {cart.length === 0 ? 'Keranjang Kosong' : `${totalQty} item`}
-              </span>
-            </div>
-            <span className="font-black text-sm">{formatRupiah(total)}</span>
-          </button>
-        )}
+          ) : (
+            <button onClick={() => setShowCart(true)}
+              className="w-full flex items-center justify-between px-4 py-3 rounded-xl bg-green-400 text-[#0a0d14]">
+              <div className="flex items-center gap-2">
+                <ShoppingCart className="w-4 h-4" />
+                <span className="font-black text-sm">
+                  {cart.length === 0 ? 'Keranjang Kosong' : `${totalQty} item`}
+                </span>
+              </div>
+              <span className="font-black text-sm">{formatRupiah(total)}</span>
+            </button>
+          )}
+        </div>
       </div>
 
       {showCheckout && (
