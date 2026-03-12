@@ -7,15 +7,14 @@ import {
   markTransactionSynced,
   cacheProducts,
   cacheCustomers,
-  type OfflineTransaction,
 } from '@/lib/offlineDB'
 
 export type SyncStatus = 'idle' | 'syncing' | 'success' | 'error'
 
 export function useOfflineSync(storeId: string | undefined) {
-  const [isOnline, setIsOnline] = useState(true)
+  const [isOnline, setIsOnline]       = useState(true)
   const [pendingCount, setPendingCount] = useState(0)
-  const [syncStatus, setSyncStatus] = useState<SyncStatus>('idle')
+  const [syncStatus, setSyncStatus]   = useState<SyncStatus>('idle')
 
   // Deteksi online/offline
   useEffect(() => {
@@ -30,11 +29,17 @@ export function useOfflineSync(storeId: string | undefined) {
     }
   }, [])
 
-  // Hitung pending transaksi
+  // Hitung pending saat storeId berubah
   useEffect(() => {
-    if (!storeId) return
-    countPending()
+    if (storeId) countPending()
   }, [storeId])
+
+  // Auto-sync saat kembali online
+  useEffect(() => {
+    if (isOnline && storeId && pendingCount > 0) {
+      syncPending()
+    }
+  }, [isOnline, storeId])
 
   async function countPending() {
     if (!storeId) return
@@ -42,14 +47,7 @@ export function useOfflineSync(storeId: string | undefined) {
     setPendingCount(pending.length)
   }
 
-  // Auto-sync ketika kembali online
-  useEffect(() => {
-    if (isOnline && storeId && pendingCount > 0) {
-      syncPending()
-    }
-  }, [isOnline, storeId])
-
-  // Sync transaksi pending ke Supabase
+  // Sync semua pending transaksi ke Supabase
   const syncPending = useCallback(async () => {
     if (!storeId) return
     const pending = await getPendingTransactions(storeId)
@@ -87,25 +85,23 @@ export function useOfflineSync(storeId: string | undefined) {
         if (trxError || !trxData) throw new Error(trxError?.message)
 
         // Insert items
-        const items = tx.items.map(item => ({
-          transaction_id: trxData.id,
-          product_id: item.product_id,
-          nama_produk: item.nama_produk,
-          harga_jual: item.harga_jual,
-          qty: item.qty,
-          subtotal: item.subtotal,
-        }))
-        await db.from('transaction_items').insert(items)
+        await db.from('transaction_items').insert(
+          tx.items.map(item => ({
+            transaction_id: trxData.id,
+            product_id: item.product_id,
+            nama_produk: item.nama_produk,
+            harga_jual: item.harga_jual,
+            qty: item.qty,
+            subtotal: item.subtotal,
+          }))
+        )
 
-        // Update stok
-        for (const item of tx.items) {
-          await db.rpc('decrement_stok', {
-            p_product_id: item.product_id,
-            p_qty: item.qty,
-          }).catch(() => {})
-        }
+        // Decrement stok via RPC
+        await Promise.all(tx.items.map(item =>
+          db.rpc('decrement_stok', { p_product_id: item.product_id, p_qty: item.qty })
+        ))
 
-        // Hutang kalau metode = hutang
+        // Hutang
         if (tx.metode_bayar === 'hutang' && tx.customer_id) {
           await db.from('debts').insert({
             store_id: storeId,
@@ -119,8 +115,8 @@ export function useOfflineSync(storeId: string | undefined) {
 
         await markTransactionSynced(tx.id)
         successCount++
-      } catch (err) {
-        console.error('Failed to sync tx:', tx.id, err)
+      } catch {
+        // Lanjut ke transaksi berikutnya kalau satu gagal
       }
     }
 
@@ -129,7 +125,7 @@ export function useOfflineSync(storeId: string | undefined) {
     setTimeout(() => setSyncStatus('idle'), 3000)
   }, [storeId])
 
-  // Cache produk & pelanggan untuk offline
+  // Refresh cache produk & pelanggan
   const refreshCache = useCallback(async () => {
     if (!storeId) return
     const supabase = createClient()
@@ -141,12 +137,5 @@ export function useOfflineSync(storeId: string | undefined) {
     if (customers) await cacheCustomers(storeId, customers as any)
   }, [storeId])
 
-  return {
-    isOnline,
-    pendingCount,
-    syncStatus,
-    syncPending,
-    refreshCache,
-    countPending,
-  }
+  return { isOnline, pendingCount, syncStatus, syncPending, refreshCache, countPending }
 }
