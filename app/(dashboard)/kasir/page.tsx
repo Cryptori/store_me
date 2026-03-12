@@ -227,6 +227,7 @@ export default function KasirPage() {
         onSearch={setSearch}
         onAddToCart={addToCart}
         onCategoryChange={setSelectedCategory}
+        allProducts={products} 
       />
 
       <div className="hidden md:flex md:w-80 lg:w-96 flex-col">
