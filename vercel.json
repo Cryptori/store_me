@@ -1,0 +1,8 @@
+{
+  "crons": [
+    {
+      "path": "/api/cron/stok-check",
+      "schedule": "0 0 * * *"
+    }
+  ]
+}

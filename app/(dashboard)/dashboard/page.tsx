@@ -13,6 +13,7 @@ import TransaksiTerakhir from '@/components/dashboard/TransaksiTerakhir'
 import StokMenipis from '@/components/dashboard/StokMenipis'
 import HutangAktif from '@/components/dashboard/HutangAktif'
 import WeeklySummaryBanner from '@/components/dashboard/WeeklySummaryBanner'
+import StokAlertBanner from '@/components/stok/StokAlertBanner'
 
 type DashboardStats = {
   penjualanHariIni: number
@@ -22,6 +23,7 @@ type DashboardStats = {
   transaksiTerakhir: (Transaction & { customer_nama?: string })[]
   hutangAktif: (Debt & { customer_nama: string })[]
   produkMenipis: Product[]
+  produkHabis: Product[]
 }
 
 export default function DashboardPage() {
@@ -36,23 +38,41 @@ export default function DashboardPage() {
 
   async function fetchStats() {
     const supabase = createClient()
-    const db = supabase as any
     const today = new Date()
     today.setHours(0, 0, 0, 0)
     const todayISO = today.toISOString()
 
     const [trxToday, hutangData, trxTerakhir, hutangList, produkAll] = await Promise.all([
-      db.from('transactions').select('id, total')
-        .eq('store_id', store!.id).gte('created_at', todayISO).eq('status', 'selesai'),
-      db.from('debts').select('id, sisa')
-        .eq('store_id', store!.id).eq('status', 'belum_lunas'),
-      supabase.from('transactions').select('*')
-        .eq('store_id', store!.id).order('created_at', { ascending: false }).limit(5),
-      supabase.from('debts').select('*')
-        .eq('store_id', store!.id).eq('status', 'belum_lunas')
-        .order('created_at', { ascending: false }).limit(5),
-      supabase.from('products').select('*')
-        .eq('store_id', store!.id).eq('is_active', true).order('stok').limit(50),
+      supabase.from('transactions')
+        .select('id, total')
+        .eq('store_id', store!.id)
+        .gte('created_at', todayISO)
+        .eq('status', 'selesai'),
+
+      supabase.from('debts')
+        .select('id, sisa')
+        .eq('store_id', store!.id)
+        .eq('status', 'belum_lunas'),
+
+      supabase.from('transactions')
+        .select('*')
+        .eq('store_id', store!.id)
+        .order('created_at', { ascending: false })
+        .limit(5),
+
+      supabase.from('debts')
+        .select('*')
+        .eq('store_id', store!.id)
+        .eq('status', 'belum_lunas')
+        .order('created_at', { ascending: false })
+        .limit(5),
+
+      supabase.from('products')
+        .select('*')
+        .eq('store_id', store!.id)
+        .eq('is_active', true)
+        .order('stok')
+        .limit(50),
     ])
 
     const trxTodayData = (trxToday.data ?? []) as Pick<Transaction, 'id' | 'total'>[]
@@ -62,8 +82,11 @@ export default function DashboardPage() {
     const penjualanHariIni = trxTodayData.reduce((s, t) => s + t.total, 0)
     const transaksiHariIni = trxTodayData.length
     const totalHutang = hutangRawData.reduce((s, d) => s + d.sisa, 0)
-    const produkMenipisData = produkData.filter(p => p.stok <= p.stok_minimum).slice(0, 5)
 
+    const produkHabis = produkData.filter(p => p.stok === 0)
+    const produkMenipisData = produkData.filter(p => p.stok > 0 && p.stok <= p.stok_minimum).slice(0, 5)
+
+    // Fetch customer nama
     const customerIds = [
       ...new Set([
         ...(trxTerakhir.data ?? []).map((t: any) => t.customer_id).filter(Boolean),
@@ -73,7 +96,9 @@ export default function DashboardPage() {
 
     let customerMap: Record<string, string> = {}
     if (customerIds.length > 0) {
-      const { data: customers } = await db.from('customers').select('id, nama').in('id', customerIds)
+      const db = supabase as any
+      const { data: customers } = await db
+        .from('customers').select('id, nama').in('id', customerIds)
       customerMap = Object.fromEntries(
         ((customers ?? []) as { id: string; nama: string }[]).map(c => [c.id, c.nama])
       )
@@ -82,15 +107,18 @@ export default function DashboardPage() {
     setStats({
       penjualanHariIni,
       transaksiHariIni,
-      stokMenipis: produkMenipisData.length,
+      stokMenipis: produkMenipisData.length + produkHabis.length,
       totalHutang,
       transaksiTerakhir: (trxTerakhir.data ?? []).map((t: any) => ({
-        ...t, customer_nama: t.customer_id ? customerMap[t.customer_id] : undefined,
+        ...t,
+        customer_nama: t.customer_id ? customerMap[t.customer_id] : undefined,
       })),
       hutangAktif: (hutangList.data ?? []).map((d: any) => ({
-        ...d, customer_nama: customerMap[d.customer_id] ?? 'Unknown',
+        ...d,
+        customer_nama: customerMap[d.customer_id] ?? 'Unknown',
       })),
       produkMenipis: produkMenipisData,
+      produkHabis: produkHabis.slice(0, 5),
     })
     setLoading(false)
   }
@@ -117,8 +145,18 @@ export default function DashboardPage() {
         </Link>
       </div>
 
-      {/* Weekly summary — muncul otomatis tiap awal minggu */}
+      {/* Weekly summary */}
       {store && <WeeklySummaryBanner storeId={store.id} />}
+
+      {/* Stok alert banner — muncul kalau ada stok habis/menipis */}
+      {(stats.produkHabis.length > 0 || stats.produkMenipis.length > 0) && store && (
+        <StokAlertBanner
+          storeName={store.nama}
+          produkMenipis={stats.produkMenipis}
+          produkHabis={stats.produkHabis}
+          ownerPhone={store.telepon ?? undefined}
+        />
+      )}
 
       <StatsCards
         penjualanHariIni={stats.penjualanHariIni}
