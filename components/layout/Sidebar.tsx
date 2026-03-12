@@ -6,35 +6,38 @@ import { useEffect, useState } from 'react'
 import {
   LayoutDashboard, ShoppingCart, Package, TrendingDown,
   Users, CreditCard, BarChart2, Settings, Zap, LogOut,
-  Store, X, ArrowRight, Gift, UserPlus,
+  Store, X, ArrowRight, Gift, UserPlus, Copy,
 } from 'lucide-react'
 import { FREE_TIER } from '@/lib/constants'
 import { useFreemium } from '@/hooks/useFreemium'
+import { useActiveStore } from '@/hooks/useActiveStore'
 import TrialBanner from '@/components/shared/TrialBanner'
+import StoreSwitcher from '@/components/layout/StoreSwitcher'
 import type { Store as StoreType } from '@/types/database'
 
 const NAV_ITEMS = [
-  { href: '/dashboard',   label: 'Dashboard',   icon: LayoutDashboard },
-  { href: '/kasir',       label: 'Kasir',        icon: ShoppingCart },
-  { href: '/produk',      label: 'Produk',       icon: Package },
-  { href: '/stok',        label: 'Stok',         icon: TrendingDown,  badge: 'stok' },
-  { href: '/pelanggan',   label: 'Pelanggan',    icon: Users },
-  { href: '/hutang',      label: 'Hutang',       icon: CreditCard,    badge: 'hutang' },
-  { href: '/laporan',     label: 'Laporan',      icon: BarChart2 },
-  { href: '/tim-kasir',   label: 'Tim Kasir',    icon: UserPlus,      proOnly: true },
-  { href: '/referral',    label: 'Referral',     icon: Gift },
-  { href: '/pengaturan',  label: 'Pengaturan',   icon: Settings },
+  { href: '/dashboard',         label: 'Dashboard',        icon: LayoutDashboard },
+  { href: '/kasir',             label: 'Kasir',            icon: ShoppingCart },
+  { href: '/produk',            label: 'Produk',           icon: Package },
+  { href: '/stok',              label: 'Stok',             icon: TrendingDown,  badge: 'stok' },
+  { href: '/pelanggan',         label: 'Pelanggan',        icon: Users },
+  { href: '/hutang',            label: 'Hutang',           icon: CreditCard,    badge: 'hutang' },
+  { href: '/laporan',           label: 'Laporan',          icon: BarChart2 },
+  { href: '/laporan/gabungan',  label: 'Laporan Gabungan', icon: BarChart2,     multiStoreOnly: true },
+  { href: '/produk/copy',       label: 'Copy Produk',      icon: Copy,          multiStoreOnly: true },
+  { href: '/tim-kasir',         label: 'Tim Kasir',        icon: UserPlus,      proOnly: true },
+  { href: '/referral',          label: 'Referral',         icon: Gift },
+  { href: '/pengaturan',        label: 'Pengaturan',       icon: Settings },
 ]
 
 const UPGRADE_MESSAGES = [
   { emoji: '📊', text: 'Laporan bulanan tersedia di PRO' },
   { emoji: '📦', text: 'Produk unlimited mulai Rp 49k/bln' },
-  { emoji: '📄', text: 'Export PDF laporan dengan PRO' },
+  { emoji: '🏪', text: 'Multi-toko tersedia di PRO' },
   { emoji: '⚡', text: 'Upgrade sekarang, hemat 2 bulan!' },
 ]
 
 type Props = {
-  store: StoreType | null
   stokAlert: number
   hutangAlert: number
   produkCount: number
@@ -44,16 +47,19 @@ type Props = {
 }
 
 export default function Sidebar({
-  store, stokAlert, hutangAlert, produkCount, isOwner = true, onClose, onLogout,
+  stokAlert, hutangAlert, produkCount, isOwner = true, onClose, onLogout,
 }: Props) {
   const pathname = usePathname()
+  const { stores, activeStore, switchStore } = useActiveStore()
   const { isPro, isTrial, trialDaysLeft, showTrialBanner, trialStatus } = useFreemium()
 
-  const [toastVisible, setToastVisible] = useState(false)
+  const [toastVisible, setToastVisible]     = useState(false)
   const [toastDismissed, setToastDismissed] = useState(false)
-  const [msgIndex, setMsgIndex] = useState(0)
+  const [msgIndex, setMsgIndex]             = useState(0)
 
-  const isFree = store && !isPro && !isTrial
+  const isFree       = activeStore && !isPro && !isTrial
+  const hasMultiStore = stores.length > 1
+  const kasirOnlyNav  = ['/kasir', '/produk']
 
   useEffect(() => {
     if (!isFree || toastDismissed) return
@@ -66,10 +72,7 @@ export default function Sidebar({
     const t = setInterval(() => {
       setMsgIndex(i => {
         const next = (i + 1) % UPGRADE_MESSAGES.length
-        if (next === 0) {
-          setToastVisible(false)
-          setTimeout(() => setToastVisible(true), 10_000)
-        }
+        if (next === 0) { setToastVisible(false); setTimeout(() => setToastVisible(true), 10_000) }
         return next
       })
     }, 4000)
@@ -78,21 +81,11 @@ export default function Sidebar({
 
   const msg = UPGRADE_MESSAGES[msgIndex]
 
-  const storeBadgeLabel = isPro ? '✨ PRO' : isTrial ? '🔥 TRIAL' : 'FREE'
-  const storeBadgeClass = isPro
-    ? 'bg-cyan-400/10 text-cyan-400 border-cyan-400/20'
-    : isTrial
-    ? 'bg-yellow-400/10 text-yellow-400 border-yellow-400/20'
-    : 'bg-green-400/10 text-green-400 border-green-400/20'
-
-  // Kasir hanya bisa akses kasir + produk
-  const kasirOnlyNav = ['/kasir', '/produk']
-
   return (
     <aside className="flex flex-col h-full bg-[#0f1117] border-r border-[#2a3045]">
       {/* Logo */}
-      <div className="p-5 border-b border-[#2a3045]">
-        <div className="flex items-center gap-2.5">
+      <div className="p-4 border-b border-[#2a3045]">
+        <div className="flex items-center gap-2.5 mb-3">
           <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-green-400 to-cyan-400 flex items-center justify-center flex-shrink-0">
             <Store className="w-4 h-4 text-[#0a0d14]" strokeWidth={2.5} />
           </div>
@@ -100,24 +93,40 @@ export default function Sidebar({
             Toko<span className="text-green-400">Ku</span>
           </span>
         </div>
+
+        {/* Store switcher */}
+        {activeStore && isOwner && (
+          <StoreSwitcher
+            stores={stores}
+            activeStore={activeStore}
+            isPro={isPro}
+            onSwitch={switchStore}
+            onClose={onClose}
+          />
+        )}
+
+        {/* Info kasir */}
+        {activeStore && !isOwner && (
+          <div className="px-3 py-2 bg-[#181c27] rounded-xl border border-[#2a3045]">
+            <div className="text-sm font-bold text-white truncate">{activeStore.nama}</div>
+            <div className="text-[10px] text-[#64748b] mt-0.5">Akses kasir</div>
+          </div>
+        )}
       </div>
 
-      {/* Store info */}
-      {store && (
-        <div className="mx-3 mt-3 p-3 bg-[#181c27] rounded-xl border border-[#2a3045]">
-          <div className="text-sm font-bold text-white truncate">{store.nama}</div>
-          <div className="flex items-center gap-1.5 mt-1">
-            <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded border ${storeBadgeClass}`}>
-              {storeBadgeLabel}
+      {/* Status bar PRO/Trial */}
+      {isOwner && (
+        <div className="px-4 py-2 border-b border-[#2a3045]">
+          <div className="flex items-center justify-between">
+            <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded border ${
+              isPro   ? 'bg-cyan-400/10 text-cyan-400 border-cyan-400/20' :
+              isTrial ? 'bg-yellow-400/10 text-yellow-400 border-yellow-400/20' :
+                        'bg-green-400/10 text-green-400 border-green-400/20'
+            }`}>
+              {isPro ? '✨ PRO' : isTrial ? `🔥 TRIAL ${trialDaysLeft}h` : 'FREE'}
             </span>
-            {isTrial && trialDaysLeft > 0 && (
-              <span className="text-[10px] text-yellow-400 font-semibold">{trialDaysLeft}h lagi</span>
-            )}
             {!isPro && !isTrial && (
               <span className="text-[10px] text-[#64748b]">{produkCount}/{FREE_TIER.MAX_PRODUK} produk</span>
-            )}
-            {!isOwner && (
-              <span className="text-[10px] text-[#64748b] bg-[#1e2333] px-1.5 py-0.5 rounded border border-[#2a3045]">kasir</span>
             )}
           </div>
         </div>
@@ -127,14 +136,14 @@ export default function Sidebar({
       <nav className="flex-1 overflow-y-auto p-3 space-y-0.5">
         {NAV_ITEMS
           .filter(item => {
-            // Kasir hanya lihat kasir + produk
             if (!isOwner) return kasirOnlyNav.includes(item.href)
+            if (item.multiStoreOnly && !hasMultiStore) return false
             return true
           })
           .map(({ href, label, icon: Icon, badge, proOnly }) => {
-            const isActive = pathname === href || pathname.startsWith(href + '/')
+            const isActive   = pathname === href || pathname.startsWith(href + '/')
             const alertCount = badge === 'stok' ? stokAlert : badge === 'hutang' ? hutangAlert : 0
-            const isLocked = proOnly && !isPro
+            const isLocked   = proOnly && !isPro
 
             return (
               <Link key={href} href={isLocked ? '/upgrade' : href} onClick={onClose}
@@ -163,7 +172,6 @@ export default function Sidebar({
       {trialStatus === 'expired' && (
         <div className="mx-3 mb-2 bg-[#1a1010] border border-red-500/30 rounded-xl p-3">
           <div className="text-[11px] font-black text-red-400 mb-1">Trial sudah berakhir</div>
-          <div className="text-[10px] text-[#64748b] mb-2">Upgrade untuk lanjut pakai fitur PRO</div>
           <Link href="/upgrade" onClick={onClose}
             className="flex items-center justify-center gap-1 w-full py-1.5 bg-red-500 hover:bg-red-400 text-white rounded-lg text-[11px] font-black transition-colors">
             Upgrade Sekarang <ArrowRight className="w-3 h-3" />
@@ -171,11 +179,9 @@ export default function Sidebar({
         </div>
       )}
 
-      {/* Upgrade toast — hanya untuk FREE */}
+      {/* Upgrade toast */}
       {isFree && !toastDismissed && (
-        <div className={`mx-3 mb-2 transition-all duration-500 ${
-          toastVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-2 pointer-events-none'
-        }`}>
+        <div className={`mx-3 mb-2 transition-all duration-500 ${toastVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-2 pointer-events-none'}`}>
           <div className="relative bg-gradient-to-br from-[#1a2a1a] to-[#0f1f1a] border border-green-500/30 rounded-xl p-3">
             <button onClick={() => { setToastVisible(false); setToastDismissed(true) }}
               className="absolute top-2 right-2 text-[#3a4560] hover:text-[#64748b]">
