@@ -3,7 +3,7 @@ export const dynamic = 'force-dynamic'
 
 import { Store, ArrowRight, Plus, Crown } from 'lucide-react'
 import Link from 'next/link'
-import { useActiveStore } from '@/hooks/useActiveStore'
+import { useActiveStore } from '@/hooks/useStore'
 import { formatTanggal } from '@/lib/utils'
 import type { Store as StoreType } from '@/types/database'
 

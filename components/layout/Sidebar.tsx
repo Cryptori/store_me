@@ -6,11 +6,11 @@ import { useEffect, useState } from 'react'
 import {
   LayoutDashboard, ShoppingCart, Package, TrendingDown,
   Users, CreditCard, BarChart2, Settings, Zap, LogOut,
-  Store, X, ArrowRight, Gift, UserPlus, Copy,
+  Store, X, ArrowRight, Gift, UserPlus, Copy, Tag, Truck,
 } from 'lucide-react'
 import { FREE_TIER } from '@/lib/constants'
 import { useFreemium } from '@/hooks/useFreemium'
-import { useActiveStore } from '@/hooks/useActiveStore'
+import { useActiveStore } from '@/hooks/useStore'
 import TrialBanner from '@/components/shared/TrialBanner'
 import StoreSwitcher from '@/components/layout/StoreSwitcher'
 import type { Store as StoreType } from '@/types/database'
@@ -22,7 +22,9 @@ const NAV_ITEMS = [
   { href: '/stok',              label: 'Stok',             icon: TrendingDown,  badge: 'stok' },
   { href: '/pelanggan',         label: 'Pelanggan',        icon: Users },
   { href: '/hutang',            label: 'Hutang',           icon: CreditCard,    badge: 'hutang' },
-  { href: '/laporan',           label: 'Laporan',          icon: BarChart2 },
+  { href: '/diskon',            label: 'Diskon & Promo',   icon: Tag,           proOnly: true },
+  { href: '/supplier',          label: 'Supplier',         icon: Truck,         proOnly: true },
+  { href: '/laporan',           label: 'Laporan',          icon: BarChart2,     proOnly: true },
   { href: '/laporan/gabungan',  label: 'Laporan Gabungan', icon: BarChart2,     multiStoreOnly: true },
   { href: '/produk/copy',       label: 'Copy Produk',      icon: Copy,          multiStoreOnly: true },
   { href: '/tim-kasir',         label: 'Tim Kasir',        icon: UserPlus,      proOnly: true },

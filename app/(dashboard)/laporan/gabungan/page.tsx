@@ -4,7 +4,7 @@ export const dynamic = 'force-dynamic'
 import { useState, useEffect } from 'react'
 import { BarChart2, TrendingUp, Package, Users, CreditCard, Loader2 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
-import { useActiveStore } from '@/hooks/useActiveStore'
+import { useActiveStore } from '@/hooks/useStore'
 import { formatRupiah, formatTanggalSingkat } from '@/lib/utils'
 
 type StoreSummary = {

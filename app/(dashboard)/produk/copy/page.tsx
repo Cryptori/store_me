@@ -4,7 +4,7 @@ export const dynamic = 'force-dynamic'
 import { useState, useEffect } from 'react'
 import { Copy, ArrowRight, Search, CheckSquare, Square, Loader2, Check } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
-import { useActiveStore } from '@/hooks/useActiveStore'
+import { useActiveStore } from '@/hooks/useStore'
 import { formatRupiah } from '@/lib/utils'
 import type { Product, Store } from '@/types/database'
 

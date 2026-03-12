@@ -48,6 +48,18 @@ export default function CheckoutModal({
           {/* Total */}
           <div className="bg-[#1e2333] rounded-xl p-4 border border-[#2a3045]">
             <div className="text-xs text-[#64748b] mb-1 font-semibold uppercase tracking-wide">Total Belanja</div>
+            {diskonTotal > 0 && (
+              <div className="flex justify-between text-xs text-[#64748b] mb-1">
+                <span>Subtotal</span>
+                <span className="line-through">{formatRupiah(subtotal ?? total)}</span>
+              </div>
+            )}
+            {diskonTotal > 0 && (
+              <div className="flex justify-between text-xs text-green-400 mb-1">
+                <span>Diskon</span>
+                <span>-{formatRupiah(diskonTotal)}</span>
+              </div>
+            )}
             <div className="text-3xl font-black text-green-400 font-mono">{formatRupiah(total)}</div>
             <div className="text-xs text-[#64748b] mt-1">{cart.length} item • {totalQty} qty</div>
           </div>

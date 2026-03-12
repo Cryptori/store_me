@@ -120,11 +120,11 @@ export function exportPDFStok(data: any, storeName: string) {
   printHTML(html, `Stok – ${storeName}`)
 }
 
-// ── EXCEL via SheetJS (CDN) ───────────────────────────────────────────────────
+// ── EXCEL via SheetJS (npm: xlsx) ─────────────────────────────────────────────
+// Pastikan sudah install: npm install xlsx
 async function loadXLSX() {
-  // SheetJS sudah tersedia di React artifacts, di Next.js load dynamic
-  if (typeof window !== 'undefined' && (window as any).XLSX) return (window as any).XLSX
-  return await import('https://cdn.sheetjs.com/xlsx-0.20.2/package/xlsx.mjs' as any)
+  const XLSX = await import('xlsx')
+  return XLSX
 }
 
 export async function exportExcelPenjualan(data: any, storeName: string, dari: string, sampai: string) {

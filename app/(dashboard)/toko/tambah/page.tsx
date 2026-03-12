@@ -5,7 +5,7 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Store, ArrowLeft, Loader2 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
-import { useActiveStore } from '@/hooks/useActiveStore'
+import { useActiveStore } from '@/hooks/useStore'
 import { useFreemium } from '@/hooks/useFreemium'
 import Link from 'next/link'
 
