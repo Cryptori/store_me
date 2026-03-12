@@ -60,6 +60,7 @@ export type Database = {
           is_pro: boolean; pro_expires_at: string | null
           is_trial: boolean; trial_expires_at: string | null; trial_used: boolean
           referral_code: string | null; referral_reward_days: number
+          is_active_default: boolean; urutan: number
           created_at: string; updated_at: string
         }
         Insert: {
@@ -85,9 +86,44 @@ export type Database = {
         Update: { id?: string; transaction_id?: string; product_id?: string | null; nama_produk?: string; harga_jual?: number; qty?: number; subtotal?: number }
       }
       transactions: {
-        Row: { id: string; store_id: string; customer_id: string | null; nomor_transaksi: string; total: number; bayar: number | null; kembalian: number | null; metode_bayar: string; status: string; catatan: string | null; created_by: string | null; created_at: string }
-        Insert: { id?: string; store_id: string; customer_id?: string | null; nomor_transaksi: string; total: number; bayar?: number | null; kembalian?: number | null; metode_bayar: string; status?: string; catatan?: string | null; created_by?: string | null; created_at?: string }
-        Update: { id?: string; store_id?: string; customer_id?: string | null; nomor_transaksi?: string; total?: number; bayar?: number | null; kembalian?: number | null; metode_bayar?: string; status?: string; catatan?: string | null; created_by?: string | null; created_at?: string }
+        Row: { id: string; store_id: string; customer_id: string | null; nomor_transaksi: string; total: number; bayar: number | null; kembalian: number | null; metode_bayar: string; status: string; catatan: string | null; created_by: string | null; created_at: string; promo_id: string | null; diskon_amount: number; subtotal_sebelum_diskon: number | null }
+        Insert: { id?: string; store_id: string; customer_id?: string | null; nomor_transaksi: string; total: number; bayar?: number | null; kembalian?: number | null; metode_bayar: string; status?: string; catatan?: string | null; created_by?: string | null; created_at?: string; promo_id?: string | null; diskon_amount?: number; subtotal_sebelum_diskon?: number | null }
+        Update: { id?: string; store_id?: string; customer_id?: string | null; nomor_transaksi?: string; total?: number; bayar?: number | null; kembalian?: number | null; metode_bayar?: string; status?: string; catatan?: string | null; created_by?: string | null; created_at?: string; promo_id?: string | null; diskon_amount?: number; subtotal_sebelum_diskon?: number | null }
+      }
+      promos: {
+        Row: { id: string; store_id: string; nama: string; tipe: string; nilai: number; min_transaksi: number; maks_diskon: number | null; kode_voucher: string | null; berlaku_mulai: string; berlaku_sampai: string | null; hari_aktif: string[] | null; is_active: boolean; kuota: number | null; terpakai: number; created_at: string }
+        Insert: { id?: string; store_id: string; nama: string; tipe: string; nilai: number; min_transaksi?: number; maks_diskon?: number | null; kode_voucher?: string | null; berlaku_mulai?: string; berlaku_sampai?: string | null; hari_aktif?: string[] | null; is_active?: boolean; kuota?: number | null; terpakai?: number; created_at?: string }
+        Update: { id?: string; store_id?: string; nama?: string; tipe?: string; nilai?: number; min_transaksi?: number; maks_diskon?: number | null; kode_voucher?: string | null; berlaku_mulai?: string; berlaku_sampai?: string | null; hari_aktif?: string[] | null; is_active?: boolean; kuota?: number | null; terpakai?: number; created_at?: string }
+      }
+      promo_usage: {
+        Row: { id: string; promo_id: string; transaction_id: string; store_id: string; diskon_amount: number; created_at: string }
+        Insert: { id?: string; promo_id: string; transaction_id: string; store_id: string; diskon_amount: number; created_at?: string }
+        Update: { id?: string; promo_id?: string; transaction_id?: string; store_id?: string; diskon_amount?: number; created_at?: string }
+      }
+      suppliers: {
+        Row: { id: string; store_id: string; nama: string; telepon: string | null; email: string | null; alamat: string | null; catatan: string | null; is_active: boolean; created_at: string }
+        Insert: { id?: string; store_id: string; nama: string; telepon?: string | null; email?: string | null; alamat?: string | null; catatan?: string | null; is_active?: boolean; created_at?: string }
+        Update: { id?: string; store_id?: string; nama?: string; telepon?: string | null; email?: string | null; alamat?: string | null; catatan?: string | null; is_active?: boolean; created_at?: string }
+      }
+      purchase_orders: {
+        Row: { id: string; store_id: string; supplier_id: string; nomor_po: string; status: string; total: number; dibayar: number; catatan: string | null; created_at: string; updated_at: string }
+        Insert: { id?: string; store_id: string; supplier_id: string; nomor_po: string; status?: string; total: number; dibayar?: number; catatan?: string | null; created_at?: string; updated_at?: string }
+        Update: { id?: string; store_id?: string; supplier_id?: string; nomor_po?: string; status?: string; total?: number; dibayar?: number; catatan?: string | null; created_at?: string; updated_at?: string }
+      }
+      purchase_order_items: {
+        Row: { id: string; po_id: string; product_id: string | null; nama_produk: string; qty_pesan: number; qty_diterima: number; harga_beli: number; subtotal: number }
+        Insert: { id?: string; po_id: string; product_id?: string | null; nama_produk: string; qty_pesan: number; qty_diterima?: number; harga_beli: number; subtotal: number }
+        Update: { id?: string; po_id?: string; product_id?: string | null; nama_produk?: string; qty_pesan?: number; qty_diterima?: number; harga_beli?: number; subtotal?: number }
+      }
+      supplier_debts: {
+        Row: { id: string; store_id: string; supplier_id: string; po_id: string; total: number; dibayar: number; sisa: number; status: string; created_at: string; updated_at: string }
+        Insert: { id?: string; store_id: string; supplier_id: string; po_id: string; total: number; dibayar?: number; sisa?: number; status?: string; created_at?: string; updated_at?: string }
+        Update: { id?: string; store_id?: string; supplier_id?: string; po_id?: string; total?: number; dibayar?: number; sisa?: number; status?: string; created_at?: string; updated_at?: string }
+      }
+      push_subscriptions: {
+        Row: { id: string; store_id: string; endpoint: string; p256dh: string; auth: string; created_at: string }
+        Insert: { id?: string; store_id: string; endpoint: string; p256dh: string; auth: string; created_at?: string }
+        Update: { id?: string; store_id?: string; endpoint?: string; p256dh?: string; auth?: string; created_at?: string }
       }
     }
     Functions: {
@@ -101,6 +137,21 @@ export type Database = {
       create_kasir_invitation:     { Args: { p_store_id: string; p_email: string };             Returns: Json }
       accept_kasir_invitation:     { Args: { p_token: string };                                 Returns: Json }
       user_has_store_access:       { Args: { p_store_id: string };                              Returns: boolean }
+      can_create_store:            { Args: { p_user_id: string };                               Returns: Json }
+      copy_products_to_store:      { Args: { p_from_store_id: string; p_to_store_id: string };  Returns: number }
+      decrement_stok:              { Args: { p_product_id: string; p_qty: number };             Returns: void }
+      validate_voucher:            { Args: { p_kode: string; p_store_id: string; p_total: number }; Returns: Json }
+      get_active_promos:           { Args: { p_store_id: string };                              Returns: Json }
+      use_voucher:                 { Args: { p_promo_id: string };                              Returns: void }
+      generate_nomor_po:           { Args: { p_store_id: string };                              Returns: string }
+      terima_barang_po:            { Args: { p_po_id: string; p_items: Json };                  Returns: void }
+      bayar_hutang_supplier:       { Args: { p_debt_id: string; p_jumlah: number };             Returns: void }
+      get_laporan_penjualan:       { Args: { p_store_id: string; p_dari: string; p_sampai: string }; Returns: Json }
+      get_produk_terlaris:         { Args: { p_store_id: string; p_dari: string; p_sampai: string }; Returns: Json }
+      get_laporan_laba_rugi:       { Args: { p_store_id: string; p_dari: string; p_sampai: string }; Returns: Json }
+      get_laporan_stok:            { Args: { p_store_id: string };                              Returns: Json }
+      get_laporan_hutang_pelanggan:{ Args: { p_store_id: string };                              Returns: Json }
+      get_laporan_hutang_supplier: { Args: { p_store_id: string };                              Returns: Json }
     }
   }
 }
@@ -118,3 +169,10 @@ export type Payment       = Database['public']['Tables']['payments']['Row']
 export type StoreMember   = Database['public']['Tables']['store_members']['Row']
 export type KasirInvitation = Database['public']['Tables']['kasir_invitations']['Row']
 export type Referral      = Database['public']['Tables']['referrals']['Row']
+export type Promo         = Database['public']['Tables']['promos']['Row']
+export type PromoUsage    = Database['public']['Tables']['promo_usage']['Row']
+export type Supplier      = Database['public']['Tables']['suppliers']['Row']
+export type PurchaseOrder = Database['public']['Tables']['purchase_orders']['Row']
+export type POItem        = Database['public']['Tables']['purchase_order_items']['Row']
+export type SupplierDebt  = Database['public']['Tables']['supplier_debts']['Row']
+export type PushSubscription = Database['public']['Tables']['push_subscriptions']['Row']
