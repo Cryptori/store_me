@@ -13,7 +13,7 @@ import CartPanel from '@/components/kasir/CartPanel'
 import CheckoutModal from '@/components/kasir/CheckoutModal'
 import SuccessModal from '@/components/kasir/SuccessModal'
 import CustomerPicker from '@/components/kasir/CustomerPicker'
-import { printStruk } from '@/components/kasir/printStruk'
+import { printStruk, shareStrukWA, copyStrukToClipboard } from '@/components/kasir/printStruk'
 
 export default function KasirPage() {
   const { store } = useStore()
@@ -111,12 +111,9 @@ export default function KasirPage() {
     const supabase = createClient()
     const db = supabase as any
 
-    // Fix 1: rpc dengan typed client perlu cast ke any
-    // Error: Argument of type '{ p_store_id: string }' is not assignable to 'undefined'
     const { data: nomorData } = await db.rpc('generate_nomor_transaksi', {
       p_store_id: store.id,
     })
-    // Fix 2: cast via unknown dulu karena null dan string tidak overlap langsung
     const nomor = (nomorData ?? `TRX-FALLBACK-${Date.now()}`) as unknown as string
 
     const { data: trx, error: trxError } = await db.from('transactions').insert({
@@ -202,18 +199,34 @@ export default function KasirPage() {
     setProducts((refreshed ?? []) as Product[])
   }
 
-  function handlePrint() {
-    if (!store || !lastTransaction) return
-    printStruk({
-      storeName: store.nama,
-      nomorTransaksi: lastTransaction,
+  // ── Struk helpers ────────────────────────────────────────────
+  function getStrukProps() {
+    return {
+      storeName: store!.nama,
+      nomorTransaksi: lastTransaction!,
       cart: lastCart,
       total: lastTotal,
       metodeBayar: lastMetode,
       bayar: lastBayar,
       kembalian: lastKembalian,
       customerName: lastCustomer?.nama,
-    })
+      customerPhone: lastCustomer?.telepon ?? undefined,
+    }
+  }
+
+  function handlePrint() {
+    if (!store || !lastTransaction) return
+    printStruk(getStrukProps())
+  }
+
+  function handleShareWA() {
+    if (!store || !lastTransaction) return
+    shareStrukWA(getStrukProps())
+  }
+
+  async function handleCopyStruk() {
+    if (!store || !lastTransaction) return false
+    return copyStrukToClipboard(getStrukProps())
   }
 
   return (
@@ -241,6 +254,7 @@ export default function KasirPage() {
         />
       </div>
 
+      {/* Mobile cart */}
       <div className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-[#181c27] border-t border-[#2a3045] p-3">
         {showCart ? (
           <div className="fixed inset-0 z-50 flex flex-col justify-end">
@@ -297,8 +311,11 @@ export default function KasirPage() {
       {showSuccess && lastTransaction && (
         <SuccessModal
           nomorTransaksi={lastTransaction}
+          hasCustomerPhone={!!lastCustomer?.telepon}
           onClose={() => setShowSuccess(false)}
           onPrint={handlePrint}
+          onShareWA={handleShareWA}
+          onCopyStruk={handleCopyStruk}
         />
       )}
 
@@ -308,8 +325,11 @@ export default function KasirPage() {
           search={customerSearch}
           selectedCustomer={selectedCustomer}
           onSearch={setCustomerSearch}
-          onSelect={setSelectedCustomer}
           onClose={() => setShowCustomerPicker(false)}
+          onSelect={(c) => {
+            setSelectedCustomer(c)
+            setShowCustomerPicker(false)
+          }}
         />
       )}
     </div>

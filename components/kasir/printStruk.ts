@@ -1,9 +1,7 @@
 import { formatRupiah } from '@/lib/utils'
 import type { CartItem, MetodeBayar } from './types'
 
-export function printStruk({
-  storeName, nomorTransaksi, cart, total, metodeBayar, bayar, kembalian, customerName,
-}: {
+type StrukProps = {
   storeName: string
   nomorTransaksi: string
   cart: CartItem[]
@@ -12,13 +10,30 @@ export function printStruk({
   bayar: number
   kembalian: number
   customerName?: string
-}) {
-  const tanggal = new Date().toLocaleDateString('id-ID', {
-    day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit',
+  customerPhone?: string  // opsional, untuk WA langsung ke pelanggan
+}
+
+const METODE_LABEL: Record<MetodeBayar, string> = {
+  tunai: 'Tunai', transfer: 'Transfer', qris: 'QRIS', hutang: 'Hutang',
+}
+
+// ── Helper: format tanggal ───────────────────────────────────
+function getTanggal() {
+  return new Date().toLocaleDateString('id-ID', {
+    day: '2-digit', month: '2-digit', year: 'numeric',
+    hour: '2-digit', minute: '2-digit',
   })
-  const metodLabel: Record<MetodeBayar, string> = {
-    tunai: 'Tunai', transfer: 'Transfer', qris: 'QRIS', hutang: 'Hutang',
-  }
+}
+
+// ── 1. Print struk (tidak berubah) ───────────────────────────
+export function printStruk(props: StrukProps) {
+  const {
+    storeName, nomorTransaksi, cart, total,
+    metodeBayar, bayar, kembalian, customerName,
+  } = props
+
+  const tanggal = getTanggal()
+
   const itemsHtml = cart.map(item => `
     <tr>
       <td style="padding:2px 0">${item.nama_produk}</td>
@@ -46,7 +61,7 @@ export function printStruk({
       <div>No: ${nomorTransaksi}</div>
       <div>Tgl: ${tanggal}</div>
       ${customerName ? `<div>Pelanggan: ${customerName}</div>` : ''}
-      <div>Bayar: ${metodLabel[metodeBayar]}</div>
+      <div>Bayar: ${METODE_LABEL[metodeBayar]}</div>
     </div>
     <div class="divider"></div>
     <table>
@@ -83,4 +98,94 @@ export function printStruk({
   win.document.close()
   win.focus()
   setTimeout(() => { win.print(); win.close() }, 300)
+}
+
+// ── 2. Generate teks struk untuk WhatsApp ───────────────────
+export function generateStrukWA(props: StrukProps): string {
+  const {
+    storeName, nomorTransaksi, cart, total,
+    metodeBayar, bayar, kembalian, customerName,
+  } = props
+
+  const tanggal = getTanggal()
+  const garis = '─'.repeat(28)
+  const garisTipis = '- '.repeat(14)
+
+  // Header
+  const lines: string[] = [
+    `🏪 *${storeName}*`,
+    garis,
+    `📋 *${nomorTransaksi}*`,
+    `🗓 ${tanggal}`,
+  ]
+
+  if (customerName) {
+    lines.push(`👤 ${customerName}`)
+  }
+  lines.push(`💳 ${METODE_LABEL[metodeBayar]}`)
+  lines.push(garisTipis)
+
+  // Items
+  cart.forEach(item => {
+    const harga = formatRupiah(item.harga_jual)
+    const subtotal = formatRupiah(item.subtotal)
+    lines.push(`*${item.nama_produk}*`)
+    lines.push(`  ${item.qty} x ${harga} = ${subtotal}`)
+  })
+
+  lines.push(garis)
+
+  // Total
+  lines.push(`*TOTAL: ${formatRupiah(total)}*`)
+
+  if (metodeBayar === 'tunai') {
+    lines.push(`Bayar: ${formatRupiah(bayar)}`)
+    lines.push(`Kembali: ${formatRupiah(kembalian)}`)
+  }
+
+  if (metodeBayar === 'hutang') {
+    lines.push(`⚠️ _Dicatat sebagai hutang_`)
+  }
+
+  lines.push(garisTipis)
+  lines.push(`_Terima kasih telah berbelanja!_ 🙏`)
+  lines.push(`_Powered by TokoKu_`)
+
+  return lines.join('\n')
+}
+
+// ── 3. Share struk via WhatsApp ──────────────────────────────
+export function shareStrukWA(props: StrukProps) {
+  const teks = generateStrukWA(props)
+  const encoded = encodeURIComponent(teks)
+
+  // Kalau ada nomor HP pelanggan, buka WA langsung ke pelanggan
+  // Format: 08xxx → 628xxx
+  if (props.customerPhone) {
+    const phone = props.customerPhone
+      .replace(/\D/g, '')           // hapus non-digit
+      .replace(/^0/, '62')          // 08 → 628
+      .replace(/^62/, '62')         // sudah 62, biarkan
+    window.open(`https://wa.me/${phone}?text=${encoded}`, '_blank')
+    return
+  }
+
+  // Tanpa nomor HP — buka WA picker (user pilih kontak sendiri)
+  // wa.me/send works di mobile, web.whatsapp.com di desktop
+  if (/Android|iPhone|iPad/i.test(navigator.userAgent)) {
+    window.open(`whatsapp://send?text=${encoded}`, '_blank')
+  } else {
+    window.open(`https://web.whatsapp.com/send?text=${encoded}`, '_blank')
+  }
+}
+
+// ── 4. Copy teks struk ke clipboard ─────────────────────────
+export async function copyStrukToClipboard(props: StrukProps): Promise<boolean> {
+  try {
+    const teks = generateStrukWA(props)
+    await navigator.clipboard.writeText(teks)
+    return true
+  } catch {
+    return false
+  }
 }
