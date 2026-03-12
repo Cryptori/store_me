@@ -18,8 +18,8 @@ type Props = {
   onSearch: (q: string) => void
   onAddToCart: (product: Product) => void
   onCategoryChange: (id: string) => void
-  // Pass semua produk (tidak difilter) untuk lookup barcode
   allProducts: Product[]
+  activePromos?: any[]   // opsional — untuk harga coret di masa depan
 }
 
 export default function ProductGrid({

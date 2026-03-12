@@ -8,6 +8,8 @@ import type { CartItem, MetodeBayar } from './types'
 type Props = {
   cart: CartItem[]
   total: number
+  subtotal?: number       // sebelum diskon (opsional, default = total)
+  diskonTotal?: number    // total diskon (opsional, default = 0)
   metodeBayar: MetodeBayar
   bayar: string
   selectedCustomer: Customer | null
@@ -23,7 +25,7 @@ type Props = {
 }
 
 export default function CheckoutModal({
-  cart, total, metodeBayar, bayar, selectedCustomer, customers, customerSearch,
+  cart, total, subtotal, diskonTotal = 0, metodeBayar, bayar, selectedCustomer, customers, customerSearch,
   loading, onMetode, onBayar, onCustomerSearch, onSelectCustomer, onProcess, onClose,
 }: Props) {
   const kembalian = metodeBayar === 'tunai' ? hitungKembalian(total, Number(bayar)) : 0
