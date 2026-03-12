@@ -6,7 +6,7 @@ import { ShoppingCart } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { formatRupiah } from '@/lib/utils'
 import { useStore } from '@/hooks/useStore'
-import type { Product, Customer } from '@/types/database'
+import type { Product, Customer, Category } from '@/types/database'
 import type { CartItem, MetodeBayar } from '@/components/kasir/types'
 import ProductGrid from '@/components/kasir/ProductGrid'
 import CartPanel from '@/components/kasir/CartPanel'
@@ -21,10 +21,12 @@ export default function KasirPage() {
   const [products, setProducts] = useState<Product[]>([])
   const [filteredProducts, setFilteredProducts] = useState<Product[]>([])
   const [customers, setCustomers] = useState<Customer[]>([])
+  const [categories, setCategories] = useState<Category[]>([])
   const [loadingProducts, setLoadingProducts] = useState(true)
 
   const [cart, setCart] = useState<CartItem[]>([])
   const [search, setSearch] = useState('')
+  const [selectedCategory, setSelectedCategory] = useState('')
 
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null)
   const [customerSearch, setCustomerSearch] = useState('')
@@ -50,26 +52,32 @@ export default function KasirPage() {
     if (!store) return
     async function init() {
       const supabase = createClient()
-      const [{ data: produkData }, { data: pelangganData }] = await Promise.all([
+      const [{ data: produkData }, { data: pelangganData }, { data: kategoriData }] = await Promise.all([
         supabase.from('products').select('*')
           .eq('store_id', store!.id).eq('is_active', true).gt('stok', 0).order('nama'),
         supabase.from('customers').select('*')
+          .eq('store_id', store!.id).order('nama'),
+        (supabase as any).from('categories').select('*')
           .eq('store_id', store!.id).order('nama'),
       ])
       setProducts((produkData ?? []) as Product[])
       setFilteredProducts((produkData ?? []) as Product[])
       setCustomers((pelangganData ?? []) as Customer[])
+      setCategories((kategoriData ?? []) as Category[])
       setLoadingProducts(false)
     }
     init()
   }, [store])
 
+  // Filter produk berdasarkan search + kategori
   useEffect(() => {
     const q = search.toLowerCase()
-    setFilteredProducts(products.filter(p =>
-      p.nama.toLowerCase().includes(q) || (p.sku ?? '').toLowerCase().includes(q)
-    ))
-  }, [search, products])
+    setFilteredProducts(products.filter(p => {
+      const matchSearch = p.nama.toLowerCase().includes(q) || (p.sku ?? '').toLowerCase().includes(q)
+      const matchCategory = selectedCategory === '' || p.category_id === selectedCategory
+      return matchSearch && matchCategory
+    }))
+  }, [search, products, selectedCategory])
 
   const total = cart.reduce((sum, item) => sum + item.subtotal, 0)
   const totalQty = cart.reduce((s, i) => s + i.qty, 0)
@@ -111,9 +119,7 @@ export default function KasirPage() {
     const supabase = createClient()
     const db = supabase as any
 
-    const { data: nomorData } = await db.rpc('generate_nomor_transaksi', {
-      p_store_id: store.id,
-    })
+    const { data: nomorData } = await db.rpc('generate_nomor_transaksi', { p_store_id: store.id })
     const nomor = (nomorData ?? `TRX-FALLBACK-${Date.now()}`) as unknown as string
 
     const { data: trx, error: trxError } = await db.from('transactions').insert({
@@ -148,19 +154,12 @@ export default function KasirPage() {
       const { data: produk } = await db.from('products').select('stok').eq('id', item.product_id).single()
       const stokSebelum = (produk?.stok ?? 0) as number
       const stokSesudah = stokSebelum - item.qty
-
       await Promise.all([
-        db.from('products').update({
-          stok: stokSesudah,
-          updated_at: new Date().toISOString(),
-        }).eq('id', item.product_id),
+        db.from('products').update({ stok: stokSesudah, updated_at: new Date().toISOString() }).eq('id', item.product_id),
         db.from('stock_logs').insert({
-          product_id: item.product_id,
-          store_id: store.id,
-          tipe: 'keluar',
-          jumlah: item.qty,
-          stok_sebelum: stokSebelum,
-          stok_sesudah: stokSesudah,
+          product_id: item.product_id, store_id: store.id,
+          tipe: 'keluar', jumlah: item.qty,
+          stok_sebelum: stokSebelum, stok_sesudah: stokSesudah,
           keterangan: `Transaksi ${nomor}`,
         }),
       ])
@@ -168,12 +167,8 @@ export default function KasirPage() {
 
     if (metodeBayar === 'hutang' && selectedCustomer) {
       await db.from('debts').insert({
-        store_id: store.id,
-        customer_id: selectedCustomer.id,
-        transaction_id: trx.id,
-        jumlah: total,
-        sisa: total,
-        status: 'belum_lunas',
+        store_id: store.id, customer_id: selectedCustomer.id,
+        transaction_id: trx.id, jumlah: total, sisa: total, status: 'belum_lunas',
       })
     }
 
@@ -199,7 +194,6 @@ export default function KasirPage() {
     setProducts((refreshed ?? []) as Product[])
   }
 
-  // ── Struk helpers ────────────────────────────────────────────
   function getStrukProps() {
     return {
       storeName: store!.nama,
@@ -214,16 +208,8 @@ export default function KasirPage() {
     }
   }
 
-  function handlePrint() {
-    if (!store || !lastTransaction) return
-    printStruk(getStrukProps())
-  }
-
-  function handleShareWA() {
-    if (!store || !lastTransaction) return
-    shareStrukWA(getStrukProps())
-  }
-
+  function handlePrint() { if (store && lastTransaction) printStruk(getStrukProps()) }
+  function handleShareWA() { if (store && lastTransaction) shareStrukWA(getStrukProps()) }
   async function handleCopyStruk() {
     if (!store || !lastTransaction) return false
     return copyStrukToClipboard(getStrukProps())
@@ -236,8 +222,11 @@ export default function KasirPage() {
         cart={cart}
         search={search}
         loading={loadingProducts}
+        categories={categories}
+        selectedCategory={selectedCategory}
         onSearch={setSearch}
         onAddToCart={addToCart}
+        onCategoryChange={setSelectedCategory}
       />
 
       <div className="hidden md:flex md:w-80 lg:w-96 flex-col">
@@ -291,20 +280,12 @@ export default function KasirPage() {
 
       {showCheckout && (
         <CheckoutModal
-          cart={cart}
-          total={total}
-          metodeBayar={metodeBayar}
-          bayar={bayar}
-          selectedCustomer={selectedCustomer}
-          customers={customers}
-          customerSearch={customerSearch}
-          loading={loadingCheckout}
-          onMetode={setMetodeBayar}
-          onBayar={setBayar}
-          onCustomerSearch={setCustomerSearch}
-          onSelectCustomer={setSelectedCustomer}
-          onProcess={processCheckout}
-          onClose={() => setShowCheckout(false)}
+          cart={cart} total={total} metodeBayar={metodeBayar} bayar={bayar}
+          selectedCustomer={selectedCustomer} customers={customers}
+          customerSearch={customerSearch} loading={loadingCheckout}
+          onMetode={setMetodeBayar} onBayar={setBayar}
+          onCustomerSearch={setCustomerSearch} onSelectCustomer={setSelectedCustomer}
+          onProcess={processCheckout} onClose={() => setShowCheckout(false)}
         />
       )}
 
@@ -321,15 +302,11 @@ export default function KasirPage() {
 
       {showCustomerPicker && (
         <CustomerPicker
-          customers={customers}
-          search={customerSearch}
+          customers={customers} search={customerSearch}
           selectedCustomer={selectedCustomer}
           onSearch={setCustomerSearch}
+          onSelect={(c) => { setSelectedCustomer(c); setShowCustomerPicker(false) }}
           onClose={() => setShowCustomerPicker(false)}
-          onSelect={(c) => {
-            setSelectedCustomer(c)
-            setShowCustomerPicker(false)
-          }}
         />
       )}
     </div>
