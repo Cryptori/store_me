@@ -1,183 +1,452 @@
 'use client'
 export const dynamic = 'force-dynamic'
 
-import { useEffect, useState } from 'react'
-import { Lock, FileDown, Loader2 } from 'lucide-react'
+import { useState, useEffect, useCallback } from 'react'
+import {
+  BarChart2, TrendingUp, Package, Users, Truck,
+  FileDown, FileSpreadsheet, Loader2, Lock,
+  ShoppingBag, ChevronDown,
+} from 'lucide-react'
+import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 import { useStore } from '@/hooks/useStore'
 import { useFreemium } from '@/hooks/useFreemium'
 import { formatRupiah } from '@/lib/utils'
-import LaporanStatsCards from '@/components/laporan/LaporanStatsCards'
-import ProdukTerlaris from '@/components/laporan/ProdukTerlaris'
-import { MetodePembayaran, JamTransaksi } from '@/components/laporan/MetodePembayaran'
-import TransaksiTable from '@/components/laporan/TransaksiTable'
-import { exportPDFHarian } from '@/components/laporan/exportPDFHarian'
-import UpgradeModal from '@/components/shared/UpgradeModal'
+import {
+  exportPDFPenjualan, exportPDFLabaRugi, exportPDFStok,
+  exportExcelPenjualan, exportExcelLabaRugi, exportExcelStok,
+  exportExcelHutangPelanggan, exportExcelHutangSupplier,
+} from '@/lib/exportLaporan'
 
-// Data dummy untuk preview blur laporan bulanan
-const DUMMY_BULANAN = [
-  { label: 'Jan', value: 4_200_000 },
-  { label: 'Feb', value: 3_800_000 },
-  { label: 'Mar', value: 5_100_000 },
+// ── Tab config ────────────────────────────────────────────────────────────────
+const TABS = [
+  { id: 'penjualan',         label: 'Penjualan',   icon: BarChart2  },
+  { id: 'terlaris',          label: 'Terlaris',    icon: TrendingUp },
+  { id: 'laba_rugi',         label: 'Laba Rugi',   icon: ShoppingBag},
+  { id: 'stok',              label: 'Stok',        icon: Package    },
+  { id: 'hutang_pelanggan',  label: 'Piutang',     icon: Users      },
+  { id: 'hutang_supplier',   label: 'Hutang',      icon: Truck      },
+] as const
+type TabId = typeof TABS[number]['id']
+
+const PERIODS = [
+  { label: '7 Hari',     dari: (now: Date) => { const d = new Date(now); d.setDate(d.getDate()-6); return d.toISOString().slice(0,10) } },
+  { label: '30 Hari',    dari: (now: Date) => { const d = new Date(now); d.setDate(d.getDate()-29); return d.toISOString().slice(0,10) } },
+  { label: 'Bulan Ini',  dari: (now: Date) => new Date(now.getFullYear(), now.getMonth(), 1).toISOString().slice(0,10) },
+  { label: 'Bulan Lalu', dari: (now: Date) => new Date(now.getFullYear(), now.getMonth()-1, 1).toISOString().slice(0,10),
+    sampai: (now: Date) => new Date(now.getFullYear(), now.getMonth(), 0).toISOString().slice(0,10) },
+  { label: 'Custom',     dari: () => '' },
 ]
 
 export default function LaporanPage() {
-  const { store } = useStore()
-  const { isPro, canExportPDF } = useFreemium()
-  const [tanggal, setTanggal] = useState(new Date().toISOString().split('T')[0])
-  const [data, setData] = useState<any>(null)
-  const [loading, setLoading] = useState(false)
-  const [showUpgradeModal, setShowUpgradeModal] = useState<'laporan_bulanan' | 'export_pdf' | null>(null)
+  const { store }        = useStore()
+  const { isPro }        = useFreemium()
+  const today            = new Date().toISOString().slice(0, 10)
 
-  useEffect(() => { if (store) fetchLaporan() }, [store, tanggal])
+  const [tab, setTab]           = useState<TabId>('penjualan')
+  const [dari, setDari]         = useState(() => { const d = new Date(); d.setDate(d.getDate()-29); return d.toISOString().slice(0,10) })
+  const [sampai, setSampai]     = useState(today)
+  const [period, setPeriod]     = useState(1)   // index ke PERIODS
+  const [data, setData]         = useState<any>(null)
+  const [loading, setLoading]   = useState(false)
+  const [exporting, setExporting] = useState<string | null>(null)
 
-  async function fetchLaporan() {
+  // ── Fetch ──────────────────────────────────────────────────────────────────
+  const fetchData = useCallback(async () => {
+    if (!store || !isPro) return
     setLoading(true)
-    const supabase = createClient()
-    const start = new Date(tanggal); start.setHours(0, 0, 0, 0)
-    const end = new Date(tanggal); end.setHours(23, 59, 59, 999)
+    setData(null)
+    const db = createClient() as any
+    try {
+      let result: any = null
+      if (tab === 'penjualan') {
+        const { data: d } = await db.rpc('get_laporan_penjualan', { p_store_id: store.id, p_dari: dari, p_sampai: sampai })
+        result = d
+      } else if (tab === 'terlaris') {
+        const { data: d } = await db.rpc('get_produk_terlaris', { p_store_id: store.id, p_dari: dari, p_sampai: sampai, p_limit: 20 })
+        result = d
+      } else if (tab === 'laba_rugi') {
+        const { data: d } = await db.rpc('get_laporan_laba_rugi', { p_store_id: store.id, p_dari: dari, p_sampai: sampai })
+        result = d
+      } else if (tab === 'stok') {
+        const { data: d } = await db.rpc('get_laporan_stok', { p_store_id: store.id })
+        result = d
+      } else if (tab === 'hutang_pelanggan') {
+        const { data: d } = await db.rpc('get_laporan_hutang_pelanggan', { p_store_id: store.id })
+        result = d
+      } else if (tab === 'hutang_supplier') {
+        const { data: d } = await db.rpc('get_laporan_hutang_supplier', { p_store_id: store.id })
+        result = d
+      }
+      setData(result)
+    } finally { setLoading(false) }
+  }, [store, isPro, tab, dari, sampai])
 
-    const { data: trxData } = await supabase
-      .from('transactions')
-      .select('*, transaction_items(*, products(nama)), customers(nama)')
-      .eq('store_id', store!.id).eq('status', 'selesai')
-      .gte('created_at', start.toISOString())
-      .lte('created_at', end.toISOString())
-      .order('created_at', { ascending: false })
+  useEffect(() => { fetchData() }, [fetchData])
 
-    const transactions = trxData ?? []
-    const totalPenjualan = transactions.reduce((s: number, t: any) => s + t.total, 0)
-    const totalTransaksi = transactions.length
-
-    const produkMap: Record<string, { qty: number; total: number }> = {}
-    transactions.forEach((t: any) => {
-      t.transaction_items?.forEach((item: any) => {
-        if (!produkMap[item.nama_produk]) produkMap[item.nama_produk] = { qty: 0, total: 0 }
-        produkMap[item.nama_produk].qty += item.qty
-        produkMap[item.nama_produk].total += item.subtotal
-      })
-    })
-    const produkTerlaris = Object.entries(produkMap)
-      .map(([nama, v]) => ({ nama, ...v }))
-      .sort((a, b) => b.total - a.total).slice(0, 5)
-
-    const metodeMap: Record<string, number> = {}
-    transactions.forEach((t: any) => {
-      metodeMap[t.metode_bayar] = (metodeMap[t.metode_bayar] ?? 0) + t.total
-    })
-
-    setData({ transactions, totalPenjualan, totalTransaksi, produkTerlaris, metodeMap })
-    setLoading(false)
+  // ── Period preset ──────────────────────────────────────────────────────────
+  function applyPeriod(idx: number) {
+    setPeriod(idx)
+    if (idx === 4) return // custom — biarkan user isi manual
+    const now = new Date()
+    const p = PERIODS[idx]
+    setDari(p.dari(now))
+    setSampai(p.sampai ? p.sampai(now) : today)
   }
 
-  const statsCards = data ? [
-    { label: 'Total Penjualan', value: formatRupiah(data.totalPenjualan), color: 'green' as const },
-    { label: 'Jumlah Transaksi', value: data.totalTransaksi.toString(), color: 'cyan' as const },
-    { label: 'Rata-rata/Transaksi', value: data.totalTransaksi > 0 ? formatRupiah(data.totalPenjualan / data.totalTransaksi) : 'Rp 0', color: 'yellow' as const },
-    { label: 'Transaksi Hutang', value: data.transactions.filter((t: any) => t.metode_bayar === 'hutang').length.toString(), color: 'red' as const },
-  ] : []
+  // ── Export ─────────────────────────────────────────────────────────────────
+  async function handleExport(fmt: 'pdf' | 'xlsx') {
+    if (!data || !store) return
+    setExporting(fmt)
+    try {
+      if (fmt === 'pdf') {
+        if (tab === 'penjualan')   exportPDFPenjualan(data, store.nama, dari, sampai)
+        if (tab === 'laba_rugi')   exportPDFLabaRugi(data, store.nama, dari, sampai)
+        if (tab === 'stok')        exportPDFStok(data, store.nama)
+      } else {
+        if (tab === 'penjualan')          await exportExcelPenjualan(data, store.nama, dari, sampai)
+        if (tab === 'laba_rugi')          await exportExcelLabaRugi(data, store.nama, dari, sampai)
+        if (tab === 'stok')               await exportExcelStok(data, store.nama)
+        if (tab === 'hutang_pelanggan')   await exportExcelHutangPelanggan(data, store.nama)
+        if (tab === 'hutang_supplier')    await exportExcelHutangSupplier(data, store.nama)
+      }
+    } finally { setExporting(null) }
+  }
+
+  const canExportPDF  = ['penjualan', 'laba_rugi', 'stok'].includes(tab)
+  const canExportXLSX = tab !== 'terlaris'
+  const needsDateFilter = !['stok', 'hutang_pelanggan', 'hutang_supplier'].includes(tab)
+
+  if (!isPro) return (
+    <div className="flex flex-col items-center justify-center py-20 px-6 text-center max-w-md mx-auto">
+      <div className="w-14 h-14 rounded-2xl bg-green-400/10 border border-green-400/20 flex items-center justify-center mb-4">
+        <Lock className="w-6 h-6 text-green-400" />
+      </div>
+      <h1 className="text-xl font-black text-white mb-2">Laporan & Export</h1>
+      <p className="text-[#64748b] text-sm mb-6">Laporan lengkap dengan export PDF & Excel tersedia untuk akun PRO.</p>
+      <Link href="/upgrade"
+        className="inline-flex items-center gap-2 px-6 py-3 bg-green-400 hover:bg-green-300 text-[#0a0d14] rounded-xl font-black text-sm transition-colors">
+        Upgrade ke PRO
+      </Link>
+    </div>
+  )
 
   return (
-    <div className="p-4 md:p-6 max-w-6xl">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6">
-        <div>
-          <h1 className="text-2xl font-black text-white">Laporan Harian</h1>
-          <p className="text-[#64748b] text-sm mt-0.5">Ringkasan penjualan per hari</p>
+    <div className="flex flex-col h-full overflow-hidden">
+      {/* Header */}
+      <div className="flex-shrink-0 px-4 md:px-6 pt-4 md:pt-6 pb-3 border-b border-[#2a3045]">
+        <div className="flex items-center justify-between mb-4">
+          <h1 className="text-2xl font-black text-white">Laporan</h1>
+          <div className="flex gap-2">
+            {canExportPDF && (
+              <button onClick={() => handleExport('pdf')} disabled={!data || loading || !!exporting}
+                className="flex items-center gap-1.5 px-3 py-2 bg-[#181c27] border border-[#2a3045] hover:border-red-400/40 text-[#64748b] hover:text-red-400 rounded-xl text-xs font-semibold transition-all disabled:opacity-40">
+                {exporting === 'pdf' ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <FileDown className="w-3.5 h-3.5" />}
+                PDF
+              </button>
+            )}
+            {canExportXLSX && (
+              <button onClick={() => handleExport('xlsx')} disabled={!data || loading || !!exporting}
+                className="flex items-center gap-1.5 px-3 py-2 bg-[#181c27] border border-[#2a3045] hover:border-green-500/40 text-[#64748b] hover:text-green-400 rounded-xl text-xs font-semibold transition-all disabled:opacity-40">
+                {exporting === 'xlsx' ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <FileSpreadsheet className="w-3.5 h-3.5" />}
+                Excel
+              </button>
+            )}
+          </div>
         </div>
-        <div className="flex flex-wrap items-center gap-2">
-          {/* Laporan Bulanan — blur preview + upgrade modal kalau FREE */}
-          {isPro ? (
-            <a href="/laporan/bulanan"
-              className="px-4 py-2.5 bg-[#181c27] border border-[#2a3045] text-[#94a3b8] hover:text-white rounded-xl text-sm font-semibold transition-colors">
-              Laporan Bulanan →
-            </a>
-          ) : (
-            <button onClick={() => setShowUpgradeModal('laporan_bulanan')}
-              className="flex items-center gap-2 px-4 py-2.5 bg-[#181c27] border border-[#2a3045] text-[#64748b] rounded-xl text-sm font-semibold hover:border-green-500/30 hover:text-green-400 transition-all">
-              <Lock className="w-3.5 h-3.5" /> Bulanan (PRO)
-            </button>
-          )}
 
-          {/* Export PDF */}
-          {canExportPDF && data ? (
-            <button onClick={() => exportPDFHarian(store?.nama ?? 'Toko', tanggal, data)}
-              className="flex items-center gap-2 px-4 py-2.5 bg-green-400/10 border border-green-500/20 text-green-400 hover:bg-green-400/20 rounded-xl text-sm font-bold transition-colors">
-              <FileDown className="w-4 h-4" /> Export PDF
-            </button>
-          ) : !isPro ? (
-            <button onClick={() => setShowUpgradeModal('export_pdf')}
-              className="flex items-center gap-2 px-4 py-2.5 bg-[#181c27] border border-[#2a3045] text-[#64748b] rounded-xl text-sm font-semibold hover:border-green-500/30 hover:text-green-400 transition-all">
-              <Lock className="w-3.5 h-3.5" /> Export PDF (PRO)
-            </button>
-          ) : null}
-
-          <input type="date" value={tanggal} onChange={e => setTanggal(e.target.value)}
-            max={new Date().toISOString().split('T')[0]}
-            className="px-4 py-2.5 bg-[#181c27] border border-[#2a3045] rounded-xl text-white text-sm outline-none focus:border-green-500/40" />
+        {/* Tabs */}
+        <div className="flex gap-1 overflow-x-auto pb-1 scrollbar-hide">
+          {TABS.map(t => {
+            const Icon = t.icon
+            return (
+              <button key={t.id} onClick={() => setTab(t.id)}
+                className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all flex-shrink-0 ${
+                  tab === t.id
+                    ? 'bg-green-400/20 border border-green-500/40 text-green-400'
+                    : 'bg-[#181c27] border border-[#2a3045] text-[#64748b] hover:text-white'
+                }`}>
+                <Icon className="w-3.5 h-3.5" />
+                {t.label}
+              </button>
+            )
+          })}
         </div>
+
+        {/* Date filter */}
+        {needsDateFilter && (
+          <div className="flex gap-2 mt-3 flex-wrap">
+            <div className="flex gap-1">
+              {PERIODS.slice(0, 4).map((p, i) => (
+                <button key={p.label} onClick={() => applyPeriod(i)}
+                  className={`px-3 py-1.5 rounded-lg text-[10px] font-bold transition-all ${
+                    period === i ? 'bg-[#2a3045] text-white' : 'text-[#64748b] hover:text-white'
+                  }`}>
+                  {p.label}
+                </button>
+              ))}
+            </div>
+            <div className="flex gap-2 items-center">
+              <input type="date" value={dari} onChange={e => { setDari(e.target.value); setPeriod(4) }}
+                className="px-2 py-1.5 bg-[#181c27] border border-[#2a3045] rounded-lg text-white text-xs outline-none focus:border-green-500/40" />
+              <span className="text-[#3a4560] text-xs">–</span>
+              <input type="date" value={sampai} onChange={e => { setSampai(e.target.value); setPeriod(4) }}
+                className="px-2 py-1.5 bg-[#181c27] border border-[#2a3045] rounded-lg text-white text-xs outline-none focus:border-green-500/40" />
+            </div>
+          </div>
+        )}
       </div>
 
-      {loading ? (
-        <div className="flex items-center justify-center py-16">
-          <Loader2 className="w-6 h-6 animate-spin text-green-400" />
-        </div>
-      ) : !data ? null : (
-        <>
-          <LaporanStatsCards cards={statsCards} />
-
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-            <ProdukTerlaris products={data.produkTerlaris} />
-            <MetodePembayaran metodeMap={data.metodeMap} />
-            <JamTransaksi transactions={data.transactions} />
+      {/* Content */}
+      <div className="flex-1 overflow-y-auto p-4 md:p-6">
+        {loading ? (
+          <div className="flex items-center justify-center py-20">
+            <Loader2 className="w-5 h-5 animate-spin text-green-400" />
           </div>
+        ) : !data ? null : (
+          <>
+            {tab === 'penjualan'        && <TabPenjualan  data={data} />}
+            {tab === 'terlaris'         && <TabTerlaris   data={data} />}
+            {tab === 'laba_rugi'        && <TabLabaRugi   data={data} />}
+            {tab === 'stok'             && <TabStok       data={data} />}
+            {tab === 'hutang_pelanggan' && <TabHutangPelanggan data={data} />}
+            {tab === 'hutang_supplier'  && <TabHutangSupplier data={data} />}
+          </>
+        )}
+      </div>
+    </div>
+  )
+}
 
-          <TransaksiTable transactions={data.transactions} canExportPDF={canExportPDF} />
+// ── Sub-components ────────────────────────────────────────────────────────────
 
-          {/* Laporan Bulanan blur teaser — hanya untuk FREE */}
-          {!isPro && (
-            <div className="mt-6 relative rounded-2xl overflow-hidden border border-[#2a3045]">
-              {/* Blurred fake chart */}
-              <div className="blur-sm pointer-events-none select-none p-6 bg-[#181c27]">
-                <div className="text-sm font-bold text-[#64748b] mb-4">Tren Penjualan Bulanan</div>
-                <div className="flex items-end gap-3 h-24">
-                  {DUMMY_BULANAN.map(d => (
-                    <div key={d.label} className="flex-1 flex flex-col items-center gap-1">
-                      <div className="text-xs text-[#64748b]">{formatRupiah(d.value)}</div>
-                      <div
-                        className="w-full bg-green-400/40 rounded-t"
-                        style={{ height: `${(d.value / 5_100_000) * 80}px` }}
-                      />
-                      <div className="text-xs text-[#64748b]">{d.label}</div>
-                    </div>
-                  ))}
+function StatCard({ label, value, sub, color = '' }: { label: string; value: string; sub?: string; color?: string }) {
+  return (
+    <div className="bg-[#181c27] border border-[#2a3045] rounded-xl p-4">
+      <div className="text-xs text-[#64748b] mb-1">{label}</div>
+      <div className={`text-xl font-black ${color || 'text-white'}`}>{value}</div>
+      {sub && <div className="text-[10px] text-[#3a4560] mt-0.5">{sub}</div>}
+    </div>
+  )
+}
+
+function TabPenjualan({ data }: { data: any }) {
+  const perHari = (data.per_hari ?? []).sort((a: any, b: any) => a.tanggal.localeCompare(b.tanggal))
+  const max = Math.max(...perHari.map((h: any) => h.total), 1)
+  return (
+    <div className="space-y-5 max-w-2xl">
+      <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+        <StatCard label="Total Penjualan" value={formatRupiah(data.total_penjualan)} color="text-green-400" />
+        <StatCard label="Jumlah Transaksi" value={String(data.total_transaksi)} color="text-cyan-400" />
+        <StatCard label="Rata-rata/Transaksi" value={formatRupiah(data.rata_transaksi)} />
+        {data.total_diskon > 0 && <StatCard label="Total Diskon" value={formatRupiah(data.total_diskon)} color="text-yellow-400" />}
+      </div>
+      {perHari.length > 0 && (
+        <div className="bg-[#181c27] border border-[#2a3045] rounded-xl p-4">
+          <div className="text-xs font-bold text-[#94a3b8] uppercase tracking-wide mb-4">Penjualan per Hari</div>
+          <div className="space-y-2">
+            {perHari.map((h: any) => (
+              <div key={h.tanggal} className="flex items-center gap-3">
+                <span className="text-xs text-[#64748b] w-24 flex-shrink-0">{new Date(h.tanggal).toLocaleDateString('id-ID', { day:'2-digit', month:'short' })}</span>
+                <div className="flex-1 h-5 bg-[#1e2333] rounded-full overflow-hidden">
+                  <div className="h-full bg-green-400/80 rounded-full transition-all"
+                    style={{ width: `${(h.total / max) * 100}%` }} />
+                </div>
+                <span className="text-xs font-bold text-white w-28 text-right flex-shrink-0">{formatRupiah(h.total)}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+function TabTerlaris({ data }: { data: any }) {
+  const items = Array.isArray(data) ? data : []
+  const max = Math.max(...items.map((p: any) => p.total_penjualan), 1)
+  return (
+    <div className="max-w-2xl">
+      <div className="bg-[#181c27] border border-[#2a3045] rounded-xl overflow-hidden">
+        <div className="px-4 py-3 border-b border-[#2a3045] flex items-center justify-between">
+          <span className="text-sm font-black text-white">Produk Terlaris</span>
+          <span className="text-xs text-[#64748b]">{items.length} produk</span>
+        </div>
+        <div className="divide-y divide-[#2a3045]">
+          {items.length === 0 ? (
+            <div className="text-center py-10 text-[#64748b] text-sm">Belum ada data penjualan</div>
+          ) : items.map((p: any, i: number) => (
+            <div key={p.product_id ?? i} className="px-4 py-3">
+              <div className="flex items-center gap-3 mb-1.5">
+                <span className="text-xs font-black text-[#3a4560] w-5">{i + 1}</span>
+                <div className="flex-1 min-w-0">
+                  <div className="text-sm font-semibold text-white truncate">{p.nama_produk}</div>
+                </div>
+                <div className="text-right flex-shrink-0">
+                  <div className="text-sm font-black text-green-400">{formatRupiah(p.total_penjualan)}</div>
+                  <div className="text-[10px] text-[#64748b]">{p.total_qty} pcs</div>
                 </div>
               </div>
-
-              {/* Overlay CTA */}
-              <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/60 backdrop-blur-[2px]">
-                <div className="text-center p-6">
-                  <div className="w-10 h-10 rounded-full bg-green-400/20 border border-green-400/30 flex items-center justify-center mx-auto mb-3">
-                    <Lock className="w-5 h-5 text-green-400" />
-                  </div>
-                  <div className="text-sm font-black text-white mb-1">Tren Penjualan Bulanan</div>
-                  <div className="text-xs text-[#64748b] mb-4">Lihat performa toko kamu per bulan dengan grafik lengkap</div>
-                  <button onClick={() => setShowUpgradeModal('laporan_bulanan')}
-                    className="px-5 py-2.5 bg-green-400 hover:bg-green-300 text-[#0a0d14] rounded-xl font-black text-xs transition-colors">
-                    Unlock dengan PRO
-                  </button>
-                </div>
+              <div className="ml-8 h-1 bg-[#1e2333] rounded-full overflow-hidden">
+                <div className="h-full bg-green-400/60 rounded-full" style={{ width: `${(p.total_penjualan / max) * 100}%` }} />
               </div>
             </div>
-          )}
-        </>
-      )}
+          ))}
+        </div>
+      </div>
+    </div>
+  )
+}
 
-      {showUpgradeModal && (
-        <UpgradeModal
-          trigger={showUpgradeModal}
-          onClose={() => setShowUpgradeModal(null)}
-        />
+function TabLabaRugi({ data }: { data: any }) {
+  return (
+    <div className="space-y-5 max-w-2xl">
+      <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+        <StatCard label="Omzet" value={formatRupiah(data.omzet)} color="text-cyan-400" />
+        <StatCard label="Total Diskon" value={formatRupiah(data.diskon)} color="text-yellow-400" />
+        <StatCard label="Pendapatan Bersih" value={formatRupiah(data.pendapatan_bersih)} />
+        <StatCard label="HPP (Modal)" value={formatRupiah(data.hpp)} color="text-red-400" />
+        <StatCard label="Laba Kotor" value={formatRupiah(data.laba_kotor)} color={data.laba_kotor >= 0 ? 'text-green-400' : 'text-red-400'} />
+        <StatCard label="Margin" value={`${data.margin_pct}%`} color={data.margin_pct >= 20 ? 'text-green-400' : 'text-yellow-400'} />
+      </div>
+      <div className="bg-[#181c27] border border-[#2a3045] rounded-xl overflow-hidden">
+        <div className="px-4 py-3 border-b border-[#2a3045]">
+          <span className="text-sm font-black text-white">Laba per Produk</span>
+        </div>
+        <div className="divide-y divide-[#2a3045] max-h-80 overflow-y-auto">
+          {(data.detail ?? []).map((p: any, i: number) => (
+            <div key={i} className="px-4 py-2.5 flex items-center gap-3">
+              <div className="flex-1 min-w-0">
+                <div className="text-xs font-semibold text-white truncate">{p.nama_produk}</div>
+                <div className="text-[10px] text-[#64748b]">HPP: {formatRupiah(p.hpp)}</div>
+              </div>
+              <div className="text-right flex-shrink-0">
+                <div className={`text-sm font-black ${p.laba >= 0 ? 'text-green-400' : 'text-red-400'}`}>{formatRupiah(p.laba)}</div>
+                <div className="text-[10px] text-[#64748b]">{p.margin_pct}%</div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function TabStok({ data }: { data: any }) {
+  const [showAll, setShowAll] = useState(false)
+  const products = data.semua_produk ?? []
+  const displayed = showAll ? products : products.slice(0, 15)
+  return (
+    <div className="space-y-5 max-w-2xl">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        <StatCard label="Total SKU" value={String(data.total_sku)} color="text-cyan-400" />
+        <StatCard label="Total Stok" value={String(data.total_stok)} />
+        <StatCard label="Nilai HPP" value={formatRupiah(data.nilai_hpp)} color="text-red-400" />
+        <StatCard label="Nilai Jual" value={formatRupiah(data.nilai_jual)} color="text-green-400" />
+      </div>
+      {(data.stok_menipis ?? []).length > 0 && (
+        <div className="bg-red-400/10 border border-red-400/20 rounded-xl p-4">
+          <div className="text-xs font-bold text-red-400 mb-2">⚠ Stok Menipis</div>
+          <div className="flex flex-wrap gap-2">
+            {data.stok_menipis.map((p: any) => (
+              <span key={p.id} className="text-xs px-2 py-1 bg-red-400/10 border border-red-400/20 text-red-400 rounded-lg">
+                {p.nama} ({p.stok} {p.satuan})
+              </span>
+            ))}
+          </div>
+        </div>
       )}
+      <div className="bg-[#181c27] border border-[#2a3045] rounded-xl overflow-hidden">
+        <div className="px-4 py-3 border-b border-[#2a3045]">
+          <span className="text-sm font-black text-white">Semua Produk</span>
+        </div>
+        <div className="divide-y divide-[#2a3045]">
+          {displayed.map((p: any) => (
+            <div key={p.id} className="px-4 py-2.5 flex items-center gap-3">
+              <div className="flex-1 min-w-0">
+                <div className="text-xs font-semibold text-white truncate">{p.nama}</div>
+                {p.sku && <div className="text-[10px] text-[#3a4560] font-mono">{p.sku}</div>}
+              </div>
+              <div className="text-center w-16 flex-shrink-0">
+                <div className="text-sm font-black text-white">{p.stok}</div>
+                <div className="text-[10px] text-[#64748b]">{p.satuan}</div>
+              </div>
+              <div className="text-right flex-shrink-0">
+                <div className="text-xs font-bold text-green-400">{formatRupiah(p.nilai_hpp)}</div>
+                <div className="text-[10px] text-[#64748b]">HPP</div>
+              </div>
+            </div>
+          ))}
+        </div>
+        {products.length > 15 && (
+          <button onClick={() => setShowAll(v => !v)}
+            className="w-full py-2.5 text-xs text-[#64748b] hover:text-white border-t border-[#2a3045] transition-colors">
+            {showAll ? 'Sembunyikan' : `Lihat semua ${products.length} produk`}
+          </button>
+        )}
+      </div>
+    </div>
+  )
+}
+
+function TabHutangPelanggan({ data }: { data: any }) {
+  return (
+    <div className="space-y-4 max-w-2xl">
+      <div className="grid grid-cols-2 gap-3">
+        <StatCard label="Total Piutang" value={formatRupiah(data.total_hutang)} color="text-red-400" />
+        <StatCard label="Jumlah Debitur" value={String(data.jumlah_debitur)} />
+      </div>
+      <div className="bg-[#181c27] border border-[#2a3045] rounded-xl overflow-hidden">
+        <div className="px-4 py-3 border-b border-[#2a3045]"><span className="text-sm font-black text-white">Detail Piutang</span></div>
+        <div className="divide-y divide-[#2a3045]">
+          {(data.detail ?? []).length === 0
+            ? <div className="text-center py-10 text-[#64748b] text-sm">Tidak ada piutang pelanggan 🎉</div>
+            : (data.detail ?? []).map((d: any) => (
+              <div key={d.customer_id} className="px-4 py-3 flex items-center gap-3">
+                <div className="flex-1 min-w-0">
+                  <div className="text-sm font-semibold text-white">{d.nama}</div>
+                  {d.telepon && <div className="text-xs text-[#64748b]">{d.telepon}</div>}
+                </div>
+                <div className="text-right">
+                  <div className="text-sm font-black text-red-400">{formatRupiah(d.sisa)}</div>
+                  <div className="text-[10px] text-[#64748b]">{d.jml_tagihan} tagihan</div>
+                </div>
+              </div>
+            ))
+          }
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function TabHutangSupplier({ data }: { data: any }) {
+  return (
+    <div className="space-y-4 max-w-2xl">
+      <div className="grid grid-cols-2 gap-3">
+        <StatCard label="Total Hutang Supplier" value={formatRupiah(data.total_hutang)} color="text-orange-400" />
+        <StatCard label="Jumlah Supplier" value={String(data.jumlah_supplier)} />
+      </div>
+      <div className="bg-[#181c27] border border-[#2a3045] rounded-xl overflow-hidden">
+        <div className="px-4 py-3 border-b border-[#2a3045]"><span className="text-sm font-black text-white">Detail Hutang Supplier</span></div>
+        <div className="divide-y divide-[#2a3045]">
+          {(data.detail ?? []).length === 0
+            ? <div className="text-center py-10 text-[#64748b] text-sm">Tidak ada hutang ke supplier 🎉</div>
+            : (data.detail ?? []).map((d: any) => (
+              <div key={d.supplier_id} className="px-4 py-3 flex items-center gap-3">
+                <div className="flex-1 min-w-0">
+                  <div className="text-sm font-semibold text-white">{d.nama}</div>
+                  {d.telepon && <div className="text-xs text-[#64748b]">{d.telepon}</div>}
+                </div>
+                <div className="text-right">
+                  <div className="text-sm font-black text-orange-400">{formatRupiah(d.sisa)}</div>
+                  <div className="text-[10px] text-[#64748b]">{d.jml_po} PO</div>
+                </div>
+              </div>
+            ))
+          }
+        </div>
+      </div>
     </div>
   )
 }
