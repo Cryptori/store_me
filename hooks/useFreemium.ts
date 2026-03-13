@@ -18,6 +18,9 @@ export type FreemiumState = {
   trialDaysLeft: number      // hari tersisa, 0 kalau sudah expired
   trialExpiresAt: Date | null
 
+  // Akses fitur PRO (isPro OR trial aktif)
+  hasProAccess: boolean
+
   // Loading
   loading: boolean
 
@@ -46,6 +49,7 @@ export function useFreemium(): FreemiumState {
       loading: true,
       canAddProduk:    () => false,
       canAddPelanggan: () => false,
+      hasProAccess: false,
       canExportPDF: false,
       canLaporanBulanan: false,
       showTrialBanner: false,
@@ -99,6 +103,7 @@ export function useFreemium(): FreemiumState {
     trialDaysLeft,
     trialExpiresAt,
     loading: false,
+    hasProAccess: hasFullAccess,
     canAddProduk,
     canAddPelanggan,
     canExportPDF,

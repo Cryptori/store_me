@@ -40,7 +40,7 @@ const PERIODS = [
 
 export default function LaporanPage() {
   const { store }        = useStore()
-  const { isPro }        = useFreemium()
+  const { isPro, hasProAccess } = useFreemium()
   const today            = new Date().toISOString().slice(0, 10)
 
   const [tab, setTab]           = useState<TabId>('penjualan')
@@ -53,7 +53,7 @@ export default function LaporanPage() {
 
   // ── Fetch ──────────────────────────────────────────────────────────────────
   const fetchData = useCallback(async () => {
-    if (!store || !isPro) return
+    if (!store || !hasProAccess) return
     setLoading(true)
     setData(null)
     const db = createClient() as any
@@ -80,7 +80,7 @@ export default function LaporanPage() {
       }
       setData(result)
     } finally { setLoading(false) }
-  }, [store, isPro, tab, dari, sampai])
+  }, [store, hasProAccess, tab, dari, sampai])
 
   useEffect(() => { fetchData() }, [fetchData])
 
@@ -117,7 +117,7 @@ export default function LaporanPage() {
   const canExportXLSX = tab !== 'terlaris'
   const needsDateFilter = !['stok', 'hutang_pelanggan', 'hutang_supplier'].includes(tab)
 
-  if (!isPro) return (
+  if (!hasProAccess) return (
     <div className="flex flex-col items-center justify-center py-20 px-6 text-center max-w-md mx-auto">
       <div className="w-14 h-14 rounded-2xl bg-green-400/10 border border-green-400/20 flex items-center justify-center mb-4">
         <Lock className="w-6 h-6 text-green-400" />

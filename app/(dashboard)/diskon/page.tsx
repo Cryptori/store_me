@@ -22,7 +22,7 @@ const TIPE_CONFIG: Record<PromoTipe, { icon: any; label: string; color: string }
 
 export default function DiskonPage() {
   const { store } = useStore()
-  const { isPro } = useFreemium()
+  const { isPro, hasProAccess } = useFreemium()
   const [promos, setPromos]         = useState<Promo[]>([])
   const [loading, setLoading]       = useState(true)
   const [showForm, setShowForm]     = useState(false)
@@ -61,7 +61,7 @@ export default function DiskonPage() {
 
   function handleAddClick(tipe: PromoTipe) {
     // FREE boleh buat diskon persen/nominal, tipe lain butuh PRO
-    if (!isPro && (tipe === 'voucher' || tipe === 'beli_x_gratis_y' || tipe === 'otomatis')) {
+    if (!hasProAccess && (tipe === 'voucher' || tipe === 'beli_x_gratis_y' || tipe === 'otomatis')) {
       setShowUpgrade(true)
       return
     }
@@ -93,7 +93,7 @@ export default function DiskonPage() {
               className={`flex flex-col items-center gap-1.5 p-3 rounded-xl border transition-all hover:scale-105 ${cfg.color}`}>
               <Icon className="w-5 h-5" />
               <span className="text-[10px] font-bold text-center leading-tight">{cfg.label}</span>
-              {needsPro && !isPro && (
+              {needsPro && !hasProAccess && (
                 <span className="text-[8px] font-black px-1 py-0.5 bg-black/20 rounded">PRO</span>
               )}
             </button>

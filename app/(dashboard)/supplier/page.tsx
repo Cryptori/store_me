@@ -13,7 +13,7 @@ import UpgradeModal from '@/components/shared/UpgradeModal'
 
 export default function SupplierPage() {
   const { store } = useStore()
-  const { isPro } = useFreemium()
+  const { isPro, hasProAccess } = useFreemium()
   const [suppliers, setSuppliers] = useState<Supplier[]>([])
   const [loading, setLoading]     = useState(true)
   const [search, setSearch]       = useState('')
@@ -42,7 +42,7 @@ export default function SupplierPage() {
     (s.telepon ?? '').includes(search)
   )
 
-  if (!isPro) return (
+  if (!hasProAccess) return (
     <div className="p-6 max-w-lg text-center py-16">
       <div className="text-5xl mb-4">🚚</div>
       <h1 className="text-xl font-black text-white mb-2">Manajemen Supplier</h1>

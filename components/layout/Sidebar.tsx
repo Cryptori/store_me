@@ -53,7 +53,7 @@ export default function Sidebar({
 }: Props) {
   const pathname = usePathname()
   const { stores, activeStore, switchStore } = useActiveStore()
-  const { isPro, isTrial, trialDaysLeft, showTrialBanner, trialStatus } = useFreemium()
+  const { isPro, isTrial, trialDaysLeft, showTrialBanner, trialStatus, hasProAccess } = useFreemium()
 
   const [toastVisible, setToastVisible]     = useState(false)
   const [toastDismissed, setToastDismissed] = useState(false)
@@ -145,7 +145,7 @@ export default function Sidebar({
           .map(({ href, label, icon: Icon, badge, proOnly }) => {
             const isActive   = pathname === href || pathname.startsWith(href + '/')
             const alertCount = badge === 'stok' ? stokAlert : badge === 'hutang' ? hutangAlert : 0
-            const isLocked   = proOnly && !isPro
+            const isLocked   = proOnly && !hasProAccess
 
             return (
               <Link key={href} href={isLocked ? '/upgrade' : href} onClick={onClose}
