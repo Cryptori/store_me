@@ -1,5 +1,7 @@
+'use client'
+
 import Link from 'next/link'
-import { WifiOff } from 'lucide-react'
+import { WifiOff, RefreshCw } from 'lucide-react'
 
 export default function OfflinePage() {
   return (
@@ -18,7 +20,8 @@ export default function OfflinePage() {
             Buka Kasir (Offline Mode)
           </Link>
           <button onClick={() => window.location.reload()}
-            className="w-full py-3 bg-[#181c27] border border-[#2a3045] text-[#64748b] hover:text-white rounded-xl font-bold text-sm transition-colors">
+            className="flex items-center justify-center gap-2 w-full py-3 bg-[#181c27] border border-[#2a3045] text-[#64748b] hover:text-white rounded-xl font-bold text-sm transition-colors">
+            <RefreshCw className="w-4 h-4" />
             Coba Lagi
           </button>
         </div>

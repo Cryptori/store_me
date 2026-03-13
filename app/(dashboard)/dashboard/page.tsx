@@ -5,7 +5,7 @@ import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { ShoppingCart, Loader2 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
-import { useStore } from '@/hooks/useStore'
+import { useActiveStore } from '@/hooks/useStore'
 import { formatTanggal } from '@/lib/utils'
 import type { Product, Transaction, Debt } from '@/types/database'
 import StatsCards from '@/components/dashboard/StatsCards'
@@ -27,7 +27,7 @@ type DashboardStats = {
 }
 
 export default function DashboardPage() {
-  const { store } = useStore()
+  const { store } = useActiveStore()
   const [stats, setStats] = useState<DashboardStats | null>(null)
   const [loading, setLoading] = useState(true)
 

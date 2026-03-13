@@ -1,6 +1,27 @@
 import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 
+// Halaman yang bisa diakses tanpa login
+const PUBLIC_ROUTES = [
+  '/',
+  '/login',
+  '/register',
+  '/onboarding',       // user baru setelah OAuth belum punya store
+  '/join',             // kasir accept invite link
+  '/offline',          // PWA offline page
+]
+
+// Prefix yang selalu publik (API internal, static files)
+const PUBLIC_PREFIXES = [
+  '/api/auth/',        // Supabase auth callback
+  '/api/payment/webhook', // Midtrans webhook (server-to-server)
+  '/api/cron/',        // Vercel cron jobs
+  '/api/push/',        // Web push (bisa dari service worker)
+  '/_next/',
+  '/icons/',
+  '/screenshots/',
+]
+
 export async function proxy(request: NextRequest) {
   let supabaseResponse = NextResponse.next({ request })
 
@@ -27,32 +48,43 @@ export async function proxy(request: NextRequest) {
 
   const { data: { user } } = await supabase.auth.getUser()
 
-  const isAuthPage = request.nextUrl.pathname.startsWith('/login') ||
-    request.nextUrl.pathname.startsWith('/register')
+  const { pathname } = request.nextUrl
 
-  const isPublicPage = request.nextUrl.pathname === '/' ||
-    request.nextUrl.pathname.startsWith('/onboarding') ||
-    request.nextUrl.pathname.startsWith('/auth')
+  // Cek apakah route ini publik
+  const isPublic =
+    PUBLIC_ROUTES.includes(pathname) ||
+    PUBLIC_PREFIXES.some(prefix => pathname.startsWith(prefix)) ||
+    pathname.startsWith('/join') // /join?token=xxx
 
-  // Kalau belum login dan bukan halaman publik/auth → redirect ke login
-  if (!user && !isAuthPage && !isPublicPage) {
+  // Cek apakah halaman auth (login/register)
+  const isAuthPage =
+    pathname.startsWith('/login') ||
+    pathname.startsWith('/register')
+
+  // Belum login & bukan halaman publik → redirect ke login
+  if (!user && !isPublic) {
     const url = request.nextUrl.clone()
     url.pathname = '/login'
+    // Simpan redirect target agar setelah login bisa langsung ke halaman yg dituju
+    url.searchParams.set('redirect', pathname)
     return NextResponse.redirect(url)
   }
 
-  // Kalau sudah login dan buka halaman auth → redirect ke dashboard
+  // Sudah login & buka halaman auth → redirect ke dashboard
   if (user && isAuthPage) {
     const url = request.nextUrl.clone()
     url.pathname = '/dashboard'
     return NextResponse.redirect(url)
   }
 
+  // Sudah login & buka /pilih-toko — biarkan lewat (multi-toko)
+  // Tidak perlu redirect apapun
+
   return supabaseResponse
 }
 
 export const config = {
   matcher: [
-    '/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
+    '/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico|txt|xml)$).*)',
   ],
 }

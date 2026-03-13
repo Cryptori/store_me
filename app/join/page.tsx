@@ -1,12 +1,13 @@
 'use client'
 export const dynamic = 'force-dynamic'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, Suspense } from 'react'
 import { useSearchParams, useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { Store, Loader2, CheckCircle, XCircle } from 'lucide-react'
 
-export default function JoinPage() {
+// ─── Komponen utama dibungkus Suspense karena pakai useSearchParams ───────────
+function JoinContent() {
   const searchParams = useSearchParams()
   const router = useRouter()
   const token = searchParams.get('token')
@@ -21,7 +22,6 @@ export default function JoinPage() {
   }, [token])
 
   async function checkToken() {
-    // Cek user sudah login
     const supabase = createClient()
     const { data: { user } } = await supabase.auth.getUser()
 
@@ -30,7 +30,6 @@ export default function JoinPage() {
       return
     }
 
-    // Cek token valid
     const { data: inv } = await (supabase as any)
       .from('kasir_invitations')
       .select('store_id, status, expires_at')
@@ -60,9 +59,7 @@ export default function JoinPage() {
     if (data?.success) {
       setStoreName(data.store_nama)
       setStatus('success')
-      setTimeout(() => {
-        window.location.href = '/dashboard'
-      }, 2000)
+      setTimeout(() => { window.location.href = '/dashboard' }, 2000)
     } else {
       setStatus('error')
       setErrorMsg(data?.message ?? 'Gagal bergabung')
@@ -138,5 +135,18 @@ export default function JoinPage() {
         </div>
       </div>
     </div>
+  )
+}
+
+// ─── Page wrapper dengan Suspense ─────────────────────────────────────────────
+export default function JoinPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen bg-[#0a0d14] flex items-center justify-center">
+        <Loader2 className="w-8 h-8 animate-spin text-green-400" />
+      </div>
+    }>
+      <JoinContent />
+    </Suspense>
   )
 }
