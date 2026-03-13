@@ -4,7 +4,7 @@ export const dynamic = 'force-dynamic'
 import { useState, useEffect } from 'react'
 import { Users, Plus, Mail, Trash2, Loader2, Crown, ShieldCheck, Copy, Check } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
-import { useStore } from '@/hooks/useStore'
+import { useActiveStore } from '@/hooks/useStore'
 import { useFreemium } from '@/hooks/useFreemium'
 import Link from 'next/link'
 
@@ -26,8 +26,8 @@ type Invitation = {
 }
 
 export default function KasirTeamPage() {
-  const { store } = useStore()
-  const { isPro } = useFreemium()
+  const { store } = useActiveStore()
+  const { isPro, hasProAccess } = useFreemium()
   const [members, setMembers] = useState<Member[]>([])
   const [invitations, setInvitations] = useState<Invitation[]>([])
   const [loading, setLoading] = useState(true)
@@ -98,7 +98,7 @@ export default function KasirTeamPage() {
     setTimeout(() => setCopiedToken(''), 2000)
   }
 
-  if (!isPro) return (
+  if (!hasProAccess) return (
     <div className="p-6 max-w-2xl">
       <div className="text-center py-16">
         <div className="w-16 h-16 rounded-2xl bg-green-400/10 border border-green-400/20 flex items-center justify-center mx-auto mb-4">

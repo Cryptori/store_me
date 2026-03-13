@@ -5,7 +5,7 @@ import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { Plus, Search, Users } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
-import { useStore } from '@/hooks/useStore'
+import { useActiveStore } from '@/hooks/useStore'
 import { useFreemium } from '@/hooks/useFreemium'
 import type { Customer } from '@/types/database'
 import type { FormPelanggan } from '@/components/pelanggan/types'
@@ -14,7 +14,7 @@ import PelangganCards from '@/components/pelanggan/PelangganCards'
 import TambahModal from '@/components/pelanggan/TambahModal'
 
 export default function PelangganPage() {
-  const { store } = useStore()
+  const { store } = useActiveStore()
   const { canAddPelanggan } = useFreemium()
   const [customers, setCustomers] = useState<Customer[]>([])
   const [filtered, setFiltered] = useState<Customer[]>([])

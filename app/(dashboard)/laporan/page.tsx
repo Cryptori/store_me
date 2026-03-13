@@ -9,7 +9,7 @@ import {
 } from 'lucide-react'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
-import { useStore } from '@/hooks/useStore'
+import { useActiveStore } from '@/hooks/useStore'
 import { useFreemium } from '@/hooks/useFreemium'
 import { formatRupiah } from '@/lib/utils'
 import {
@@ -39,7 +39,7 @@ const PERIODS = [
 ]
 
 export default function LaporanPage() {
-  const { store }        = useStore()
+  const { store }        = useActiveStore()
   const { isPro, hasProAccess } = useFreemium()
   const today            = new Date().toISOString().slice(0, 10)
 

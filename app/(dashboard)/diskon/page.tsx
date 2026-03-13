@@ -4,7 +4,7 @@ export const dynamic = 'force-dynamic'
 import { useState, useEffect } from 'react'
 import { Plus, Tag, Percent, DollarSign, Gift, Clock, Ticket, Loader2, Trash2, ToggleLeft, ToggleRight, Edit2 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
-import { useStore } from '@/hooks/useStore'
+import { useActiveStore } from '@/hooks/useStore'
 import { useFreemium } from '@/hooks/useFreemium'
 import type { Promo, PromoTipe } from '@/types/diskon'
 import { formatDiskonLabel, HARI_LABEL } from '@/types/diskon'
@@ -21,7 +21,7 @@ const TIPE_CONFIG: Record<PromoTipe, { icon: any; label: string; color: string }
 }
 
 export default function DiskonPage() {
-  const { store } = useStore()
+  const { store } = useActiveStore()
   const { isPro, hasProAccess } = useFreemium()
   const [promos, setPromos]         = useState<Promo[]>([])
   const [loading, setLoading]       = useState(true)

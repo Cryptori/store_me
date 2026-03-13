@@ -12,7 +12,7 @@ import Link from 'next/link'
 export default function TambahTokoPage() {
   const router = useRouter()
   const { stores, addStore } = useActiveStore()
-  const { isPro } = useFreemium()
+  const { isPro, hasProAccess } = useFreemium()
   const [nama, setNama] = useState('')
   const [alamat, setAlamat] = useState('')
   const [telepon, setTelepon] = useState('')
@@ -20,7 +20,7 @@ export default function TambahTokoPage() {
   const [error, setError] = useState('')
 
   // Guard: FREE hanya boleh 1 toko
-  if (!isPro && stores.length >= 1) {
+  if (!hasProAccess && stores.length >= 1) {
     return (
       <div className="p-6 max-w-lg">
         <div className="text-center py-16">

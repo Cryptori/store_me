@@ -5,14 +5,14 @@ import { useState, useEffect } from 'react'
 import { Plus, Search, Truck, Phone, Mail, MapPin, Trash2, Edit2, Loader2, Package } from 'lucide-react'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
-import { useStore } from '@/hooks/useStore'
+import { useActiveStore } from '@/hooks/useStore'
 import { useFreemium } from '@/hooks/useFreemium'
 import type { Supplier } from '@/types/supplier'
 import SupplierForm from '@/components/supplier/SupplierForm'
 import UpgradeModal from '@/components/shared/UpgradeModal'
 
 export default function SupplierPage() {
-  const { store } = useStore()
+  const { store } = useActiveStore()
   const { isPro, hasProAccess } = useFreemium()
   const [suppliers, setSuppliers] = useState<Supplier[]>([])
   const [loading, setLoading]     = useState(true)

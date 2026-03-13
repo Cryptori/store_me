@@ -3,14 +3,14 @@ export const dynamic = 'force-dynamic'
 
 import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import { useStore } from '@/hooks/useStore'
+import { useActiveStore } from '@/hooks/useStore'
 import type { TokoInput } from '@/lib/validations'
 import type { Store } from '@/types/database'
 import FormToko from '@/components/pengaturan/FormToko'
 import StatusLangganan from '@/components/pengaturan/StatusLangganan'
 
 export default function PengaturanPage() {
-  const { store, setStore } = useStore()
+  const { store, updateActiveStore } = useActiveStore()
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
   const [error, setError] = useState('')
@@ -52,7 +52,7 @@ export default function PengaturanPage() {
       return
     }
 
-    setStore(updated)
+    updateActiveStore(updated)
     setSaving(false)
     setSaved(true)
     setTimeout(() => setSaved(false), 2500)

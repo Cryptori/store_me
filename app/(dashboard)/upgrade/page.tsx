@@ -3,7 +3,7 @@ export const dynamic = 'force-dynamic'
 
 import { useState, useEffect } from 'react'
 import { Check, Zap, Loader2, Clock } from 'lucide-react'
-import { useStore } from '@/hooks/useStore'
+import { useActiveStore } from '@/hooks/useStore'
 import { useFreemium } from '@/hooks/useFreemium'
 import { PRO_PRICE } from '@/lib/constants'
 import { formatRupiah } from '@/lib/utils'
@@ -34,7 +34,7 @@ const FAQ = [
 ]
 
 export default function UpgradePage() {
-  const { store } = useStore()
+  const { store } = useActiveStore()
   const { isPro, isTrial, trialDaysLeft, trialStatus } = useFreemium()
   const [billing, setBilling] = useState<'bulanan' | 'tahunan'>('bulanan')
   const [loading, setLoading] = useState(false)

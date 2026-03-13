@@ -4,7 +4,7 @@ export const dynamic = 'force-dynamic'
 import { useState, useEffect } from 'react'
 import { Gift, Copy, Check, Users, Share2, Loader2, ArrowRight } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
-import { useStore } from '@/hooks/useStore'
+import { useActiveStore } from '@/hooks/useStore'
 
 type ReferralStats = {
   code: string
@@ -13,7 +13,7 @@ type ReferralStats = {
 }
 
 export default function ReferralPage() {
-  const { store } = useStore()
+  const { store } = useActiveStore()
   const [stats, setStats] = useState<ReferralStats | null>(null)
   const [loading, setLoading] = useState(true)
   const [generating, setGenerating] = useState(false)

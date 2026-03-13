@@ -4,7 +4,7 @@ export const dynamic = 'force-dynamic'
 import { useEffect, useState } from 'react'
 import { Search, AlertTriangle, CheckCircle } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
-import { useStore } from '@/hooks/useStore'
+import { useActiveStore } from '@/hooks/useStore'
 import type { HutangItem, FilterType } from '@/components/hutang/types'
 import SummaryCards from '@/components/hutang/SummaryCards'
 import HutangTable from '@/components/hutang/HutangTable'
@@ -12,7 +12,7 @@ import HutangCards from '@/components/hutang/HutangCards'
 import BayarModal from '@/components/hutang/BayarModal'
 
 export default function HutangPage() {
-  const { store } = useStore()
+  const { store } = useActiveStore()
   const [hutangs, setHutangs] = useState<HutangItem[]>([])
   const [filtered, setFiltered] = useState<HutangItem[]>([])
   const [search, setSearch] = useState('')
