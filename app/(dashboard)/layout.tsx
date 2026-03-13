@@ -5,46 +5,46 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Menu } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
-import { useStore } from '@/hooks/useStore'
+import { useActiveStore } from '@/hooks/useStore'
 import Sidebar from '@/components/layout/Sidebar'
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter()
-  const { store } = useStore()
+  const { activeStore } = useActiveStore()
   const [mobileOpen, setMobileOpen] = useState(false)
   const [stokAlert, setStokAlert] = useState(0)
   const [hutangAlert, setHutangAlert] = useState(0)
   const [produkCount, setProdukCount] = useState(0)
 
   useEffect(() => {
-    if (!store) return
+    if (!activeStore) return
     fetchAlerts()
-  }, [store])
+  }, [activeStore])
 
   async function fetchAlerts() {
+    if (!activeStore) return
     const supabase = createClient()
     const db = supabase as any
 
     const [stokRes, hutangRes, produkRes] = await Promise.all([
       db.from('products')
         .select('id, stok, stok_minimum')
-        .eq('store_id', store!.id)
+        .eq('store_id', activeStore.id)
         .eq('is_active', true),
 
       supabase.from('debts')
         .select('*', { count: 'exact', head: true })
-        .eq('store_id', store!.id)
+        .eq('store_id', activeStore.id)
         .eq('status', 'belum_lunas'),
 
       supabase.from('products')
         .select('*', { count: 'exact', head: true })
-        .eq('store_id', store!.id)
+        .eq('store_id', activeStore.id)
         .eq('is_active', true),
     ])
 
     const stokData = (stokRes.data ?? []) as { id: string; stok: number; stok_minimum: number }[]
-    const menipis = stokData.filter(p => p.stok <= p.stok_minimum).length
-    setStokAlert(menipis)
+    setStokAlert(stokData.filter(p => p.stok <= p.stok_minimum).length)
     setHutangAlert(hutangRes.count ?? 0)
     setProdukCount(produkRes.count ?? 0)
   }
@@ -59,7 +59,6 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     <div className="flex h-screen overflow-hidden bg-[#0a0d14]">
       <div className="hidden md:flex md:w-56 lg:w-60 flex-col flex-shrink-0">
         <Sidebar
-          store={store}
           stokAlert={stokAlert}
           hutangAlert={hutangAlert}
           produkCount={produkCount}
@@ -71,7 +70,6 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         <div className="fixed inset-0 z-50 flex md:hidden">
           <div className="w-60 flex flex-col">
             <Sidebar
-              store={store}
               stokAlert={stokAlert}
               hutangAlert={hutangAlert}
               produkCount={produkCount}
