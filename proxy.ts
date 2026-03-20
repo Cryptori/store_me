@@ -20,6 +20,17 @@ const PUBLIC_PREFIXES = [
   '/_next/',
   '/icons/',
   '/screenshots/',
+  '/splash/',
+  '/.well-known/',     // Chrome DevTools & browser internals
+]
+
+// File statis publik di root /public
+const PUBLIC_FILES = [
+  '/manifest.json',
+  '/sw.js',
+  '/robots.txt',
+  '/sitemap.xml',
+  '/favicon.ico',
 ]
 
 export async function proxy(request: NextRequest) {
@@ -53,6 +64,7 @@ export async function proxy(request: NextRequest) {
   // Cek apakah route ini publik
   const isPublic =
     PUBLIC_ROUTES.includes(pathname) ||
+    PUBLIC_FILES.includes(pathname) ||
     PUBLIC_PREFIXES.some(prefix => pathname.startsWith(prefix)) ||
     pathname.startsWith('/join') // /join?token=xxx
 
@@ -85,6 +97,6 @@ export async function proxy(request: NextRequest) {
 
 export const config = {
   matcher: [
-    '/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico|txt|xml)$).*)',
+    '/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico|txt|xml|json|js)$).*)',
   ],
 }
